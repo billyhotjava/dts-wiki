@@ -1,0 +1,228 @@
+/*
+ * DTS Wiki v1 — JHipster domain model.
+ * Generate:  cd <repo root> && npx generator-jhipster@<see docs/design/00 D2> jdl jhipster/dts-wiki.jdl
+ * Design:    docs/design/02-领域模型.md (constraints, indexes and custom Liquibase changes not expressible here)
+ *
+ * Generated entity REST resources (/api/<entity>) are ADMIN-ONLY (see 03 §4). Business APIs for pages,
+ * versions, comments etc. are hand-written under /api/wiki/** and enforce space access.
+ */
+
+application {
+  config {
+    baseName dtsWiki
+    applicationType monolith
+    packageName com.yuzhi.dts.wiki
+    authenticationType oauth2
+    buildTool maven
+    clientFramework react
+    clientBundler vite
+    databaseType sql
+    devDatabaseType postgresql
+    prodDatabaseType postgresql
+    cacheProvider caffeine
+    enableHibernateCache true
+    searchEngine no
+    enableTranslation true
+    nativeLanguage zh-cn
+    languages [zh-cn, en]
+    serverPort 8080
+    testFrameworks [cypress]
+    skipUserManagement false
+  }
+  entities *
+}
+
+/** 产品空间 */
+entity Space {
+  slug String required unique pattern(/^[a-z][a-z0-9-]{1,30}$/)
+  name String required maxlength(40)
+  description String maxlength(200)
+  /** SSH URL, e.g. git@github.com:billyhotjava/prs-stack.git ; null = no git sync */
+  gitRepoUrl String maxlength(255)
+  gitBranch String maxlength(100)
+  position Integer
+  archived Boolean required
+}
+
+/** A directory of the space's git repository mounted into the page tree */
+entity SyncRoot {
+  /** path inside the repository, e.g. "worklog" */
+  repoPath String required maxlength(255)
+  enabled Boolean required
+}
+
+/** Sync progress of one SyncRoot */
+entity SyncState {
+  lastSyncedCommit String maxlength(40)
+  lastFetchAt Instant
+  lastPushAt Instant
+  status SyncRunStatus required
+  message TextBlob
+}
+
+enum SyncRunStatus { IDLE, RUNNING, OK, OFFLINE, PUSH_FAILED, ERROR }
+
+/** A node of the page tree */
+entity Page {
+  title String required maxlength(200)
+  kind PageKind required
+  /** repository-relative path for GIT/FOLDER pages under a SyncRoot, e.g. worklog/v1.0.0/README.md */
+  gitPath String maxlength(1024)
+  position Integer required
+  syncStatus PageSyncStatus required
+  createdAt Instant required
+  updatedAt Instant required
+  deletedAt Instant
+}
+
+enum PageKind { FOLDER, GIT, NATIVE, TEMPLATE }
+enum PageSyncStatus { LOCAL_ONLY, SYNCED, PENDING_PUSH, CONFLICT }
+
+/** Immutable full-content snapshot of a page */
+entity PageVersion {
+  versionNo Integer required min(1)
+  contentMd TextBlob required
+  contentSha256 String required minlength(64) maxlength(64)
+  /** jhi_user login when authored in the wiki; git author name otherwise */
+  authorName String required maxlength(100)
+  authorEmail String maxlength(254)
+  source VersionSource required
+  gitCommit String maxlength(40)
+  message String maxlength(500)
+  createdAt Instant required
+}
+
+enum VersionSource { WEB, GIT, MERGE, RESTORE }
+
+entity Attachment {
+  fileName String required maxlength(255)
+  mimeType String required maxlength(100)
+  size Long required min(0)
+  sha256 String required minlength(64) maxlength(64)
+  /** repository-relative path when the owning page is a GIT page, e.g. worklog/x/assets/a.png */
+  gitPath String maxlength(1024)
+  createdAt Instant required
+  deletedAt Instant
+}
+
+entity Comment {
+  bodyMd TextBlob required
+  /** reserved for inline comments (v2) */
+  anchor String maxlength(500)
+  createdAt Instant required
+  updatedAt Instant
+  resolvedAt Instant
+  deletedAt Instant
+}
+
+/** Both sides changed a GIT page since the last sync point */
+entity SyncConflict {
+  gitContentMd TextBlob required
+  gitCommit String required maxlength(40)
+  detectedAt Instant required
+  resolvedAt Instant
+  resolution ConflictResolution
+}
+
+enum ConflictResolution { MERGED, KEPT_WIKI, KEPT_GIT }
+
+/** Outbound (wiki -> git) work item, written in the same transaction as the page change */
+entity SyncOutbox {
+  op OutboxOp required
+  /** JSON: {fromPath,toPath,versionId,attachmentId,...} */
+  payload TextBlob required
+  actorLogin String required maxlength(50)
+  actorName String maxlength(100)
+  actorEmail String maxlength(254)
+  status OutboxStatus required
+  attempts Integer required
+  lastError TextBlob
+  createdAt Instant required
+  processedAt Instant
+}
+
+enum OutboxOp { WRITE, MOVE, DELETE, RESTORE, ATTACH, DETACH }
+enum OutboxStatus { PENDING, DONE, FAILED, BLOCKED_BY_CONFLICT }
+
+/** Server-side autosaved draft (one per user and page) */
+entity PageDraft {
+  contentMd TextBlob required
+  baseVersionNo Integer required
+  updatedAt Instant required
+}
+
+entity PageWatch {
+  createdAt Instant required
+}
+
+entity Notification {
+  type NotificationType required
+  title String required maxlength(200)
+  link String maxlength(500)
+  createdAt Instant required
+  readAt Instant
+}
+
+enum NotificationType { MENTION, PAGE_UPDATED, COMMENT_REPLY, SYNC_CONFLICT }
+
+entity ActivityEvent {
+  type ActivityType required
+  actorName String required maxlength(100)
+  targetTitle String maxlength(200)
+  detail TextBlob
+  createdAt Instant required
+}
+
+enum ActivityType { PAGE_CREATED, PAGE_UPDATED, PAGE_MOVED, PAGE_DELETED, PAGE_RESTORED, COMMENT_ADDED, SYNC_IMPORTED, CONFLICT_RESOLVED }
+
+entity Label {
+  name String required unique maxlength(50)
+}
+
+relationship OneToMany {
+  Space{syncRoots} to SyncRoot{space(slug) required}
+  Space{pages} to Page{space(slug) required}
+  Page{children} to Page{parent(title)}
+  Page{versions} to PageVersion{page required}
+  Page{attachments} to Attachment{page required}
+  Page{comments} to Comment{page required}
+  Comment{replies} to Comment{parent}
+}
+
+relationship OneToOne {
+  SyncState{syncRoot required} to SyncRoot
+}
+
+relationship ManyToOne {
+  /** mount point of the SyncRoot inside the space's page tree (a FOLDER page) */
+  SyncRoot{mountPage(title)} to Page
+  Page{currentVersion} to PageVersion
+  PageVersion{author(login)} to User with builtInEntity
+  Comment{author(login) required} to User with builtInEntity
+  SyncConflict{page(title) required} to Page
+  SyncConflict{baseVersion} to PageVersion
+  SyncConflict{wikiVersion required} to PageVersion
+  SyncConflict{resolvedBy(login)} to User with builtInEntity
+  SyncOutbox{space(slug) required} to Space
+  SyncOutbox{page} to Page
+  PageDraft{page required} to Page
+  PageDraft{user(login) required} to User with builtInEntity
+  PageWatch{page required} to Page
+  PageWatch{user(login) required} to User with builtInEntity
+  Notification{recipient(login) required} to User with builtInEntity
+  Notification{page} to Page
+  ActivityEvent{space(slug) required} to Space
+  ActivityEvent{page} to Page
+}
+
+relationship ManyToMany {
+  Page{labels(name)} to Label{pages}
+}
+
+dto * with mapstruct
+service * with serviceImpl
+paginate Page, PageVersion, Comment, Notification, ActivityEvent, SyncOutbox, SyncConflict with pagination
+filter Page, PageVersion, ActivityEvent, Notification
+readOnly PageVersion, ActivityEvent
+/* Confluence-style UI is hand-written; generated CRUD screens exist only for admin tables */
+skipClient Page, PageVersion, Attachment, Comment, SyncState, SyncConflict, SyncOutbox, PageDraft, PageWatch, Notification, ActivityEvent, Label

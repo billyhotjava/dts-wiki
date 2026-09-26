@@ -1,0 +1,7 @@
+# secrets
+.env
+deploy/secrets/
+*.key
+# build output (JHipster adds more on generation)
+target/
+node_modules/
