@@ -1,23 +1,24 @@
-import { useQuery } from '@tanstack/react-query';
 import { createContext, useContext, type ReactNode } from 'react';
-import { fetchAccount, type Account } from '../api/client';
+import { useBootstrap, type SpaceSummary } from '../api/hooks';
 
 interface AuthState {
-  account?: Account;
+  account?: { login: string; firstName?: string | null; lastName?: string | null };
+  spaces: SpaceSummary[];
   isLoading: boolean;
   isError: boolean;
 }
 
-const AuthContext = createContext<AuthState>({ isLoading: true, isError: false });
+const AuthContext = createContext<AuthState>({ spaces: [], isLoading: true, isError: false });
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const { data, isLoading, isError } = useQuery({
-    queryKey: ['account'],
-    queryFn: fetchAccount,
-    retry: false,
-    staleTime: 60_000,
-  });
-  return <AuthContext.Provider value={{ account: data, isLoading, isError }}>{children}</AuthContext.Provider>;
+  const { data, isLoading, isError } = useBootstrap();
+  return (
+    <AuthContext.Provider
+      value={{ account: data?.account, spaces: data?.spaces ?? [], isLoading, isError }}
+    >
+      {children}
+    </AuthContext.Provider>
+  );
 }
 
 export function useAuth(): AuthState {

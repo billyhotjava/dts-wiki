@@ -18,6 +18,20 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     sourcemap: false,
+    manifest: true, // design 10 S4.5: check-bundle-size.mjs reads dist/.vite/manifest.json
+    rollupOptions: {
+      output: {
+        // design 10 S4.5 chunking: react is shared everywhere; editor (Milkdown+CodeMirror)
+        // loads only on edit routes. antd is intentionally NOT forced into one chunk:
+        // hoisting would drag Tree/Modal/Dropdown (space pages only) into the home bundle.
+        // Rollup splits antd per usage graph automatically.
+        manualChunks: id => {
+          if (/@milkdown|@codemirror/.test(id)) return 'editor';
+          if (/[\\/]node_modules[\\/](react|react-dom|react-router|scheduler)[\\/]/.test(id)) return 'vendor-react';
+          return undefined;
+        },
+      },
+    },
   },
   test: {
     environment: 'jsdom',

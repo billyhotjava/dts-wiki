@@ -9,10 +9,11 @@ import { AuthProvider } from './auth/AuthProvider';
 import { i18n } from './i18n';
 import { router } from './router';
 import { theme } from './theme';
+import './styles/reading.css';
 
 const queryClient = new QueryClient({
   defaultOptions: {
-    queries: { retry: 1, staleTime: 30_000 },
+    queries: { retry: 1, staleTime: 30_000 }, // design 10 S4.5
   },
 });
 

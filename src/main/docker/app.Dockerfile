@@ -4,7 +4,7 @@
 FROM eclipse-temurin:25-jre-noble
 RUN apt-get update && apt-get install -y --no-install-recommends git openssh-client tzdata \
  && rm -rf /var/lib/apt/lists/* && useradd -r -u 1001 -m wiki
-ENV TZ=Asia/Shanghai JAVA_OPTS="-XX:MaxRAMPercentage=60 -XX:+ExitOnOutOfMemoryError"
+ENV TZ=Asia/Shanghai JAVA_OPTS="-XX:+UseSerialGC -XX:MaxRAMPercentage=50 -XX:MaxMetaspaceSize=192m -Xss512k -XX:+ExitOnOutOfMemoryError"
 COPY target/dts-wiki-*.jar /app/app.jar
 USER wiki
 EXPOSE 8080

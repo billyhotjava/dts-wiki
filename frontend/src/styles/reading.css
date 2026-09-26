@@ -1,0 +1,78 @@
+/* Reading typography, aligned with the live wiki (VitePress default theme).
+   Design 10 S4.6. Applied to .markdown-body (MarkdownView) and .reading containers. */
+.markdown-body,
+.reading {
+  font-size: 16px;
+  line-height: 1.75;
+  max-width: 880px;
+}
+
+.markdown-body h1,
+.reading h1 {
+  font-size: 32px;
+  margin: 0 0 24px;
+}
+
+.markdown-body h2,
+.reading h2 {
+  font-size: 24px;
+  margin: 48px 0 16px;
+  padding-top: 24px;
+  border-top: 1px solid #f0f0f0;
+}
+
+.markdown-body h3,
+.reading h3 {
+  font-size: 20px;
+  margin: 32px 0 12px;
+}
+
+.markdown-body p,
+.reading p {
+  margin: 0 0 12px;
+}
+
+.markdown-body table,
+.reading table {
+  display: block;
+  overflow-x: auto;
+  border-collapse: collapse;
+  margin: 16px 0;
+  max-width: 100%;
+}
+
+.markdown-body th,
+.reading th,
+.markdown-body td,
+.reading td {
+  border: 1px solid #f0f0f0;
+  padding: 8px 12px;
+  white-space: nowrap;
+}
+
+.markdown-body tr:nth-child(even) td,
+.reading tr:nth-child(even) td {
+  background: #fafafa;
+}
+
+.markdown-body code:not(pre code),
+.reading code:not(pre code) {
+  background: rgba(0, 0, 0, 0.06);
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-size: 0.9em;
+}
+
+.markdown-body pre,
+.reading pre {
+  background: #fafafa;
+  border: 1px solid #f0f0f0;
+  border-radius: 6px;
+  padding: 12px 16px;
+  overflow-x: auto;
+}
+
+.markdown-body img,
+.reading img {
+  max-width: 100%;
+}

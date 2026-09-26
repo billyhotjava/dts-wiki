@@ -33,7 +33,9 @@ class TechnicalStructureTest {
         .ignoreDependency(belongToAnyOf(DtsWikiApp.class), alwaysTrue())
         .ignoreDependency(alwaysTrue(), belongToAnyOf(
             com.yuzhi.dts.wiki.config.Constants.class,
-            com.yuzhi.dts.wiki.config.ApplicationProperties.class
+            com.yuzhi.dts.wiki.config.ApplicationProperties.class,
+            // DTS-WIKI: customized: business settings holder, same role as ApplicationProperties
+            com.yuzhi.dts.wiki.config.WikiProperties.class
         ));
 
     // DTS-WIKI: customized (Sprint-6 design 03 S1/S6): business REST must go through

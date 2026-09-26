@@ -56,9 +56,18 @@ public class SecurityConfiguration {
         this.apiDocsOpen = environment.acceptsProfiles(Profiles.of("api-docs"));
     }
 
+    // DTS-WIKI: customized (design 10 S3.7): static frontend resources carry their own
+    // Cache-Control from WebConfigurer; Spring Security's default no-store header must
+    // not override them. This chain only matches hashed assets and the entry page.
     @Bean
-    public SecurityFilterChain filterChain(HttpSecurity http) {
-        http.cors(withDefaults())
+    @org.springframework.core.annotation.Order(-1)
+    public SecurityFilterChain staticResourcesChain(HttpSecurity http) throws Exception {
+        http.securityMatcher("/assets/**", "/index.html", "/favicon.ico").authorizeHttpRequests(authz -> authz.anyRequest().permitAll()).headers(h -> h.cacheControl(c -> c.disable()));
+        return http.build();
+    }
+
+    @Bean
+    public SecurityFilterChain filterChain(HttpSecurity http) {        http.cors(withDefaults())
             .csrf(csrf ->
                 csrf
                     .csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())

@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from './client';
 
 export interface TreeNode {
@@ -48,7 +48,23 @@ export interface PageView {
 }
 
 export function useSpaces() {
-  return useQuery({ queryKey: ['spaces'], queryFn: async () => (await api.get<SpaceSummary[]>('/api/wiki/spaces')).data });
+  return useQuery({ queryKey: ['spaces'], queryFn: async () => (await api.get<SpaceSummary[]>('/api/wiki/spaces')).data, staleTime: 30_000 });
+}
+
+export interface Bootstrap {
+  account: { login: string; firstName?: string | null; lastName?: string | null; email?: string | null };
+  spaces: SpaceSummary[];
+  canCreateSpace: boolean;
+}
+
+/** Single startup call (design 10 S3.3): replaces /api/account + /spaces round trips. */
+export function useBootstrap() {
+  return useQuery({
+    queryKey: ['bootstrap'],
+    queryFn: async () => (await api.get<Bootstrap>('/api/wiki/bootstrap')).data,
+    staleTime: 30_000,
+    retry: false,
+  });
 }
 
 export function useSpace(slug: string) {
@@ -69,6 +85,8 @@ export function usePage(id: number) {
   return useQuery({
     queryKey: ['page', id],
     queryFn: async () => (await api.get<PageView>(`/api/wiki/pages/${id}`)).data,
+    staleTime: 30_000,
+    placeholderData: keepPreviousData,
   });
 }
 

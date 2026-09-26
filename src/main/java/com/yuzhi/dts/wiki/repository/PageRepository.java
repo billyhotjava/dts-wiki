@@ -42,7 +42,7 @@ public interface PageRepository extends PageRepositoryWithBagRelationships, JpaR
     @Query("select page from Page page left join fetch page.space left join fetch page.parent where page.id =:id")
     Optional<Page> findOneWithToOneRelationships(@Param("id") Long id);
 
-    // DTS-WIKI: customized (Sprint-6 W4): wiki-tree queries. Soft-deleted pages are
+    // DTS-WIKI: customized (Sprint-6 W4/W5a): wiki-tree queries. Soft-deleted pages are
     // invisible to the tree, search and activity feeds (invariant I10).
 
     @Query(
@@ -51,7 +51,7 @@ public interface PageRepository extends PageRepositoryWithBagRelationships, JpaR
     )
     List<Page> findLiveBySpace(@Param("spaceId") Long spaceId);
 
-    @Query("select page from Page page left join fetch page.space where page.id = :id and page.deletedAt is null")
+    @Query("select page from Page page left join fetch page.space left join fetch page.currentVersion where page.id = :id and page.deletedAt is null")
     Optional<Page> findLive(@Param("id") Long id);
 
     @Query("select page from Page page where page.id = :id")

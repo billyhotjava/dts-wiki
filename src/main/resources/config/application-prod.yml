@@ -37,6 +37,7 @@ spring:
     hikari:
       poolName: Hikari
       auto-commit: false
+      maximum-pool-size: 10 # DTS-WIKI: customized (design 06 S2.1, small heap)
   # Replace by 'prod, faker' to add the faker context and have sample data loaded in production
   liquibase:
     contexts: prod
@@ -67,7 +68,9 @@ server:
   shutdown: graceful # see https://docs.spring.io/spring-boot/reference/web/graceful-shutdown.html#web.graceful-shutdown
   compression:
     enabled: true
-    mime-types: text/html,text/xml,text/plain,text/css,application/javascript,application/json,image/svg+xml
+    # DTS-WIKI: customized (design 10 S3.7): + text/markdown for agent raw reads;
+    # text/javascript is what Spring serves .js as (legacy application/javascript kept too)
+    mime-types: text/html,text/xml,text/plain,text/css,text/javascript,application/javascript,application/json,text/markdown,image/svg+xml
     min-response-size: 1024
 
 # ===================================================================

@@ -62,4 +62,20 @@ class SecurityPathIT {
         // no such mapping: security passes, dispatcher returns 404
         mockMvc.perform(get("/api/admin/sync")).andExpect(status().isNotFound());
     }
+
+    @Test
+    @WithMockUser(authorities = { "ROLE_ADMIN" })
+    void bootstrapReturnsAccountSpacesAndFlag() throws Exception {
+        mockMvc
+            .perform(get("/api/wiki/bootstrap"))
+            .andExpect(status().isOk())
+            .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.account").exists())
+            .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.spaces").isArray())
+            .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.canCreateSpace").value(true));
+    }
+
+    @Test
+    void bootstrapRequiresLogin() throws Exception {
+        mockMvc.perform(get("/api/wiki/bootstrap")).andExpect(status().isUnauthorized());
+    }
 }

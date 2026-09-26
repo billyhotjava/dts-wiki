@@ -1,7 +1,9 @@
 import { Dropdown, Tree, message, Modal, Input } from 'antd';
 import type { DataNode } from 'antd/es/tree';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router';
+import { useQueryClient } from '@tanstack/react-query';
+import { api } from '../../api/client';
 import { useCopyPage, useCreatePage, useDeletePage, useRenameMove, useTree, type TreeNode } from '../../api/hooks';
 import { AsyncState } from '../../components/AsyncState';
 
@@ -27,6 +29,7 @@ function findNode(nodes: TreeNode[], id: number): TreeNode | undefined {
 export function PageTree() {
   const { slug = '', pageId } = useParams();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const selectedId = pageId === undefined ? undefined : Number(pageId);
   const { data, isLoading, isError, refetch } = useTree(slug);
   const renameMove = useRenameMove();
@@ -35,6 +38,15 @@ export function PageTree() {
   const deletePage = useDeletePage();
   const [modal, setModal] = useState<{ mode: 'rename' | 'create' | 'copy'; node: TreeNode } | null>(null);
   const [input, setInput] = useState('');
+
+  // design 10 S4.5: hover a tree node 150ms -> prefetch its page
+  const hoverTimer = useRef<number | undefined>(undefined);
+  const prefetch = (id: number) => {
+    window.clearTimeout(hoverTimer.current);
+    hoverTimer.current = window.setTimeout(() => {
+      void queryClient.prefetchQuery({ queryKey: ['page', id], queryFn: async () => (await api.get(`/api/wiki/pages/${id}`)).data, staleTime: 30_000 });
+    }, 150);
+  };
 
   const openModal = (mode: 'rename' | 'create' | 'copy', node: TreeNode) => {
     setInput(mode === 'rename' ? node.title : '');
@@ -123,7 +135,7 @@ export function PageTree() {
                 }}
                 trigger={['contextMenu']}
               >
-                <span>{label}</span>
+                <span onMouseEnter={() => prefetch(id)}>{label}</span>
               </Dropdown>
             );
           }}

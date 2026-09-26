@@ -1,5 +1,7 @@
 package com.yuzhi.dts.wiki.web.rest.wiki;
 
+import com.yuzhi.dts.wiki.security.SecurityUtils;
+import com.yuzhi.dts.wiki.service.UserService;
 import com.yuzhi.dts.wiki.service.wiki.PageService;
 import com.yuzhi.dts.wiki.service.wiki.TemplateService;
 import com.yuzhi.dts.wiki.service.wiki.dto.PageDtos;
@@ -20,11 +22,30 @@ public class WikiSpaceResource {
 
     private final PageService pageService;
     private final TemplateService templateService;
+    private final UserService userService;
 
-    public WikiSpaceResource(PageService pageService, TemplateService templateService) {
+    public WikiSpaceResource(PageService pageService, TemplateService templateService, UserService userService) {
         this.pageService = pageService;
         this.templateService = templateService;
+        this.userService = userService;
     }
+
+    /** Single startup call for the frontend (design 10 S3.3): account + spaces + admin flag. */
+    @GetMapping("/bootstrap")
+    public BootstrapPayload bootstrap() {
+        String login = SecurityUtils.getCurrentUserLogin().orElse("");
+        var account = userService
+            .getUserWithAuthoritiesByLogin(login)
+            .map(u -> new AccountPayload(u.getLogin(), u.getFirstName(), u.getLastName(), u.getEmail()))
+            .orElse(new AccountPayload(login, null, null, null));
+        List<SpaceDtos.SpaceSummary> spaces = pageService.listSpaces();
+        boolean canCreateSpace = SecurityUtils.hasCurrentUserThisAuthority(com.yuzhi.dts.wiki.security.AuthoritiesConstants.ADMIN);
+        return new BootstrapPayload(account, spaces, canCreateSpace);
+    }
+
+    public record AccountPayload(String login, String firstName, String lastName, String email) {}
+
+    public record BootstrapPayload(AccountPayload account, List<SpaceDtos.SpaceSummary> spaces, boolean canCreateSpace) {}
 
     @GetMapping("/templates")
     public List<TemplateService.TemplateItem> templates(@RequestParam(value = "space", required = false) String space) {
