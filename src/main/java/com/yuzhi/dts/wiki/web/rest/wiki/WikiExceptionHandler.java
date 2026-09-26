@@ -3,7 +3,9 @@ package com.yuzhi.dts.wiki.web.rest.wiki;
 import com.yuzhi.dts.wiki.service.wiki.PageSyncConflictException;
 import com.yuzhi.dts.wiki.service.wiki.PageVersionConflictException;
 import com.yuzhi.dts.wiki.service.wiki.SpaceNotVisibleException;
+import com.yuzhi.dts.wiki.service.wiki.content.FrontmatterInvalidException;
 import java.net.URI;
+import java.util.Map;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpStatus;
@@ -56,6 +58,16 @@ public class WikiExceptionHandler {
         problem.setType(URI.create("https://yuzhicloud.com/problems/bad-request"));
         problem.setTitle("Bad request");
         problem.setProperty("errorKey", "BAD_REQUEST");
+        return problem;
+    }
+
+    @ExceptionHandler(FrontmatterInvalidException.class)
+    public ProblemDetail frontmatterInvalid(FrontmatterInvalidException e) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.UNPROCESSABLE_ENTITY, "Frontmatter 不合规");
+        problem.setType(URI.create("https://yuzhicloud.com/problems/frontmatter-invalid"));
+        problem.setTitle("Frontmatter invalid");
+        problem.setProperty("errorKey", "FRONTMATTER_INVALID");
+        problem.setProperty("errors", e.getErrors().stream().map(err -> Map.of("path", err.path(), "message", err.message())).toList());
         return problem;
     }
 }

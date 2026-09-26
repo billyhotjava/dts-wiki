@@ -1,14 +1,19 @@
-import { Button, Input, Select, Space, Spin, Typography, message } from 'antd';
+import { Alert, Button, Input, Select, Space, Spin, Typography, message } from 'antd';
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router';
 import { uploadAttachment, useCreatePage, usePage, useSavePageContent, useTemplates, type PageView } from '../../api/hooks';
+import { splitFrontmatter } from '../../utils/frontmatter';
 import { AsyncState } from '../../components/AsyncState';
 import { MarkdownEditor, type MarkdownEditorHandle } from './MarkdownEditor';
+import { PropertiesForm } from './PropertiesForm';
 import { VersionConflictModal } from './VersionConflictModal';
 
-// Page editing (design 05 S4): title, save (Ctrl/Cmd+S), message, cancel;
-// 409 conflict modal; images auto-upload; new pages pick a template.
+// Page editing (design 05 S4 + 10 S4.3): title, properties (frontmatter), save
+// (Ctrl/Cmd+S), message, cancel; 409 conflict modal; 422 frontmatter errors;
+// images auto-upload; new pages pick a template.
 // Draft autosave + presence arrive with W8 (endpoints do not exist yet).
+// NOTE (W5b): body is saved as the editor serializes it; minimalDiff block-level
+// preservation arrives with W5c (F1) — see 10 S4.1.
 export function PageEditorPage({ mode }: { mode: 'edit' | 'new' }) {
   const { slug = '', pageId = '' } = useParams();
   const [search] = useSearchParams();
@@ -22,9 +27,11 @@ export function PageEditorPage({ mode }: { mode: 'edit' | 'new' }) {
 
   const [title, setTitle] = useState('');
   const [content, setContent] = useState<string | null>(null);
+  const [frontmatter, setFrontmatter] = useState('');
   const [messageText, setMessageText] = useState('');
   const [templateId, setTemplateId] = useState<string | undefined>(undefined);
   const [conflict, setConflict] = useState<number | null>(null);
+  const [frontmatterErrors, setFrontmatterErrors] = useState<string[]>([]);
   const [createdId, setCreatedId] = useState<number | null>(null);
   const editorRef = useRef<MarkdownEditorHandle>(null);
   const effectiveId = id ?? createdId;
@@ -32,14 +39,27 @@ export function PageEditorPage({ mode }: { mode: 'edit' | 'new' }) {
   useEffect(() => {
     if (mode === 'edit' && page) {
       setTitle(page.title);
-      setContent(page.contentMd ?? '');
+      const split = splitFrontmatter(page.contentMd ?? '');
+      setFrontmatter(split.front);
+      setContent(split.body);
     }
   }, [mode, page]);
 
   const currentBase = (p: PageView | undefined) => p?.versionNo ?? 0;
 
+  // editor emits full markdown (frontmatter + body); the form owns frontmatter,
+  // so only the body part is tracked here.
+  const handleEditorChange = (full: string) => {
+    setContent(splitFrontmatter(full).body);
+  };
+
+  const composeSaveBody = (): string => {
+    const editorFull = editorRef.current?.getMarkdown() ?? content ?? '';
+    return frontmatter + splitFrontmatter(editorFull).body;
+  };
+
   const doSave = async (force = false) => {
-    const body = editorRef.current?.getMarkdown() ?? content ?? '';
+    const body = composeSaveBody();
     try {
       if (effectiveId === null) {
         const parentId = search.get('parent') === null ? undefined : Number(search.get('parent'));
@@ -49,14 +69,16 @@ export function PageEditorPage({ mode }: { mode: 'edit' | 'new' }) {
       } else {
         const base = force && conflict !== null ? conflict : currentBase(page);
         await saveContent.mutateAsync({ id: effectiveId, slug, body: { baseVersionNo: base, contentMd: body, message: messageText || undefined } });
+        setFrontmatterErrors([]);
         void message.success('已保存');
         navigate(`/s/${slug}/p/${effectiveId}`);
       }
     } catch (e: unknown) {
-      const status = (e as { response?: { status?: number; data?: { currentVersionNo?: number } } }).response?.status;
-      if (status === 409) {
-        const serverVersion = (e as { response: { data: { currentVersionNo: number } } }).response.data.currentVersionNo;
-        setConflict(serverVersion ?? null);
+      const response = (e as { response?: { status?: number; data?: { currentVersionNo?: number; errors?: { path: string; message: string }[] } } }).response;
+      if (response?.status === 409) {
+        setConflict(response.data?.currentVersionNo ?? null);
+      } else if (response?.status === 422) {
+        setFrontmatterErrors((response.data?.errors ?? []).map(err => `${err.path}: ${err.message}`));
       } else {
         void message.error('保存失败');
       }
@@ -101,7 +123,8 @@ export function PageEditorPage({ mode }: { mode: 'edit' | 'new' }) {
     return <Spin fullscreen tip="Loading" />;
   }
 
-  const initial = mode === 'new' && templateId ? (templates?.find(t => t.id === templateId)?.contentMd ?? '') : (content ?? '');
+  const templateBody = mode === 'new' && templateId ? splitFrontmatter(templates?.find(t => t.id === templateId)?.contentMd ?? '').body : null;
+  const initial = mode === 'new' ? (templateBody ?? '') : (content ?? '');
 
   return (
     <>
@@ -117,11 +140,13 @@ export function PageEditorPage({ mode }: { mode: 'edit' | 'new' }) {
             options={(templates ?? []).map(t => ({ value: t.id, label: t.title }))}
           />
         )}
+        <PropertiesForm initialYaml={frontmatter} onChange={setFrontmatter} />
+        {frontmatterErrors.length > 0 && <Alert type="error" showIcon message="属性不合规，内容未保存" description={frontmatterErrors.join('；')} />}
         <MarkdownEditor
           key={`${mode}-${effectiveId ?? 'new'}-${templateId ?? ''}`}
           ref={editorRef}
           value={initial}
-          onChange={setContent}
+          onChange={handleEditorChange}
           onUploadImage={handleUpload}
         />
         <Space>

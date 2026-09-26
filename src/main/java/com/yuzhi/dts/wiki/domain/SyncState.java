@@ -43,8 +43,8 @@ public class SyncState implements Serializable {
     @Column(name = "status", nullable = false)
     private SyncRunStatus status;
 
-    @Lob
-    @Column(name = "message")
+    // DTS-WIKI: customized (W5b): @Lob removed, see PageVersion.contentMd.
+    @Column(name = "message", columnDefinition = "TEXT")
     private String message;
 
     @JsonIgnoreProperties(value = { "mountPage", "space", "syncState" }, allowSetters = true)

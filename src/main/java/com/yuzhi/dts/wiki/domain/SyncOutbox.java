@@ -37,8 +37,8 @@ public class SyncOutbox implements Serializable {
     /**
      * JSON: {fromPath,toPath,versionId,attachmentId,...}
      */
-    @Lob
-    @Column(name = "payload", nullable = false)
+    // DTS-WIKI: customized (W5b): @Lob removed, see PageVersion.contentMd.
+    @Column(name = "payload", nullable = false, columnDefinition = "TEXT")
     private String payload;
 
     @NotNull
@@ -63,8 +63,8 @@ public class SyncOutbox implements Serializable {
     @Column(name = "attempts", nullable = false)
     private Integer attempts;
 
-    @Lob
-    @Column(name = "last_error")
+    // DTS-WIKI: customized (W5b): @Lob removed, see PageVersion.contentMd.
+    @Column(name = "last_error", columnDefinition = "TEXT")
     private String lastError;
 
     @NotNull

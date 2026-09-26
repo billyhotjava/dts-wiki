@@ -27,8 +27,8 @@ public class PageDraft implements Serializable {
     @Column(name = "id")
     private Long id;
 
-    @Lob
-    @Column(name = "content_md", nullable = false)
+    // DTS-WIKI: customized (W5b): @Lob removed, see PageVersion.contentMd.
+    @Column(name = "content_md", nullable = false, columnDefinition = "TEXT")
     private String contentMd;
 
     @NotNull

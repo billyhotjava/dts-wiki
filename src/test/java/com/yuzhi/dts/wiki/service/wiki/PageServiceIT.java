@@ -7,6 +7,7 @@ import com.yuzhi.dts.wiki.IntegrationTest;
 import com.yuzhi.dts.wiki.domain.Space;
 import com.yuzhi.dts.wiki.domain.enumeration.PageKind;
 import com.yuzhi.dts.wiki.repository.SpaceRepository;
+import com.yuzhi.dts.wiki.service.wiki.content.FrontmatterInvalidException;
 import com.yuzhi.dts.wiki.service.wiki.dto.PageDtos;
 import com.yuzhi.dts.wiki.service.wiki.dto.SpaceDtos;
 import java.util.List;
@@ -31,6 +32,9 @@ class PageServiceIT {
 
     @Autowired
     private SpaceRepository spaceRepository;
+
+    @Autowired
+    private PageMetaDao pageMetaDao;
 
     private Space space;
 
@@ -94,6 +98,29 @@ class PageServiceIT {
         assertThat(pageService.trash("w4t")).extracting(p -> p.getId()).contains(child.id());
         PageDtos.PageView restored = pageService.restorePage(child.id());
         assertThat(pageService.getPage(restored.id()).contentMd()).isEqualTo("body");
+    }
+
+    @Test
+    void frontmatterProjectsToMetaAndSearch() {
+        PageDtos.PageView root = pageService.createPage(
+            "w4t",
+            new PageDtos.CreatePageRequest(null, "Task Doc", null, "---\ntype: task\nid: S6/F4/T03\nfeature: S6/F5\ntitle: Inbound\nstatus: READY\n---\n# Inbound\n")
+        );
+        var meta = pageMetaDao.findByPage(root.id());
+        assertThat(meta).isPresent();
+        var row = meta.orElseThrow();
+        assertThat(row.docType()).isEqualTo("task");
+        assertThat(row.docId()).isEqualTo("S6/F4/T03");
+        assertThat(row.valid()).isTrue();
+        assertThat(pageService.getPage(root.id()).meta()).isNotNull();
+    }
+
+    @Test
+    void invalidFrontmatterRejectedStrict() {
+        PageDtos.PageView root = root();
+        assertThatThrownBy(() ->
+            pageService.saveContent(root.id(), new PageDtos.SaveContentRequest(1, "---\ntype: task\nid: bad\n---\n# X\n", null))
+        ).isInstanceOf(FrontmatterInvalidException.class);
     }
 
     @Test

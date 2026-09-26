@@ -87,3 +87,9 @@ management:
   health:
     mail:
       enabled: false
+
+# DTS-WIKI: customized: no background jobs in tests (hermetic suites; jobs are
+# covered by direct-call ITs like ContentReindexJobIT).
+wiki:
+  scheduling:
+    enabled: false

@@ -90,6 +90,26 @@ class WikiPageResourceIT {
     }
 
     @Test
+    void invalidFrontmatterYields422() throws Exception {
+        String root = mockMvc
+            .perform(post("/api/wiki/spaces/{slug}/pages", slug).with(csrf()).contentType(MediaType.APPLICATION_JSON).content("{\"title\":\"R\",\"kind\":\"FOLDER\"}"))
+            .andExpect(status().isCreated())
+            .andReturn()
+            .getResponse()
+            .getContentAsString();
+        long rootId = ((Number) JsonPath.read(root, "$.id")).longValue();
+        mockMvc
+            .perform(
+                put("/api/wiki/pages/{id}/content", rootId)
+                    .with(csrf())
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content("{\"baseVersionNo\":0,\"contentMd\":\"---\\ntype: task\\nid: bad\\n---\\n# X\\n\"}")
+            )
+            .andExpect(status().isUnprocessableEntity())
+            .andExpect(jsonPath("$.errorKey").value("FRONTMATTER_INVALID"));
+    }
+
+    @Test
     void unknownSpaceReadsAs404() throws Exception {
         mockMvc.perform(get("/api/wiki/spaces/nope/tree")).andExpect(status().isNotFound()).andExpect(jsonPath("$.errorKey").value("SPACE_NOT_VISIBLE"));
     }

@@ -33,8 +33,10 @@ public class PageVersion implements Serializable {
     @Column(name = "version_no", nullable = false)
     private Integer versionNo;
 
-    @Lob
-    @Column(name = "content_md", nullable = false)
+    // DTS-WIKI: customized (W5b): @Lob removed. On PostgreSQL + Hibernate 7, @Lob String
+    // reads go through an OID-locator path ("Bad value for type long") whenever the row
+    // comes from the DB instead of the persistence context. The column stays TEXT.
+    @Column(name = "content_md", nullable = false, columnDefinition = "TEXT")
     private String contentMd;
 
     @NotNull
@@ -66,6 +68,11 @@ public class PageVersion implements Serializable {
     @Size(max = 500)
     @Column(name = "message", length = 500)
     private String message;
+
+    // DTS-WIKI: customized (design 10 S3.4): agent name behind a user-authored version.
+    @Size(max = 100)
+    @Column(name = "via_agent", length = 100)
+    private String viaAgent;
 
     @NotNull
     @Column(name = "created_at", nullable = false)
@@ -199,6 +206,20 @@ public class PageVersion implements Serializable {
 
     public void setMessage(String message) {
         this.message = message;
+    }
+
+    // DTS-WIKI: customized (design 10 S3.4).
+    public String getViaAgent() {
+        return this.viaAgent;
+    }
+
+    public PageVersion viaAgent(String viaAgent) {
+        this.setViaAgent(viaAgent);
+        return this;
+    }
+
+    public void setViaAgent(String viaAgent) {
+        this.viaAgent = viaAgent;
     }
 
     public Instant getCreatedAt() {

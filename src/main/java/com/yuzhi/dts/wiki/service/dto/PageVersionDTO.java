@@ -48,6 +48,10 @@ public class PageVersionDTO implements Serializable {
     @Size(max = 500)
     private String message;
 
+    // DTS-WIKI: customized (design 10 S3.4).
+    @Size(max = 100)
+    private String viaAgent;
+
     @NotNull
     private Instant createdAt;
 
@@ -126,6 +130,15 @@ public class PageVersionDTO implements Serializable {
 
     public void setMessage(String message) {
         this.message = message;
+    }
+
+    // DTS-WIKI: customized (design 10 S3.4).
+    public String getViaAgent() {
+        return viaAgent;
+    }
+
+    public void setViaAgent(String viaAgent) {
+        this.viaAgent = viaAgent;
     }
 
     public Instant getCreatedAt() {

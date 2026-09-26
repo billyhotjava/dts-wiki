@@ -28,6 +28,20 @@ export interface SpaceDetail extends SpaceSummary {
   syncRoots: { repoPath: string; mountPageId: number | null; enabled: boolean }[];
 }
 
+export interface PageMeta {
+  docType: string;
+  docId: string | null;
+  status: string | null;
+  owner: string | null;
+  priority: string | null;
+  tags: string[];
+  depends: string[];
+  related: string[];
+  valid: boolean;
+  errors: { path: string; message: string }[];
+  fields: Record<string, unknown>;
+}
+
 export interface PageView {
   id: number;
   spaceSlug: string;
@@ -45,6 +59,8 @@ export interface PageView {
   labels: string[];
   watching: boolean;
   editable: boolean;
+  meta: PageMeta | null;
+  url: string;
 }
 
 export function useSpaces() {

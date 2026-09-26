@@ -42,8 +42,8 @@ public class ActivityEvent implements Serializable {
     @Column(name = "target_title", length = 200)
     private String targetTitle;
 
-    @Lob
-    @Column(name = "detail")
+    // DTS-WIKI: customized (W5b): @Lob removed, see PageVersion.contentMd.
+    @Column(name = "detail", columnDefinition = "TEXT")
     private String detail;
 
     @NotNull

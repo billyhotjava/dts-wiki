@@ -5,7 +5,7 @@ import { createRef } from 'react';
 import { describe, expect, it } from 'vitest';
 import { MarkdownEditor, type MarkdownEditorHandle } from '../src/features/edit/MarkdownEditor';
 
-const DIR = join(import.meta.dirname, 'roundtrip-samples');
+const DIR = join(import.meta.dirname, 'fixtures/md');
 const FILES = readdirSync(DIR)
   .filter(f => f.endsWith('.md'))
   .sort();

@@ -46,4 +46,6 @@
     <include file="config/liquibase/changelog/9001_constraints.xml" relativeToChangelogFile="false"/>
     <include file="config/liquibase/changelog/9002_search.xml" relativeToChangelogFile="false"/>
     <include file="config/liquibase/changelog/9003_shedlock.xml" relativeToChangelogFile="false"/>
+    <include file="config/liquibase/changelog/9004_page_meta.xml" relativeToChangelogFile="false"/>
+    <include file="config/liquibase/changelog/9005_page_version_via_agent.xml" relativeToChangelogFile="false"/>
 </databaseChangeLog>

@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://yuzhicloud.com/schemas/wiki/page",
+  "title": "Generic page frontmatter (all fields optional)",
+  "type": "object",
+  "properties": {
+    "type": { "const": "page" },
+    "id": { "type": "string" },
+    "title": { "type": "string" },
+    "status": { "type": "string" },
+    "owner": { "type": "string" },
+    "tags": { "type": "array", "items": { "type": "string" } },
+    "related": { "type": "array", "items": { "type": "string" } }
+  }
+}

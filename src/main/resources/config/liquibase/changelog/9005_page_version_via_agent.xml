@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+    <!-- DTS-WIKI: customized (design 10 S3.4): incremental column for B4. Never edit
+         already-executed changesets; JDL updated in parallel (hand-applied delta). -->
+    <changeSet id="9005-page-version-via-agent" author="dts-wiki">
+        <addColumn tableName="page_version">
+            <column name="via_agent" type="varchar(100)"/>
+        </addColumn>
+    </changeSet>
+</databaseChangeLog>

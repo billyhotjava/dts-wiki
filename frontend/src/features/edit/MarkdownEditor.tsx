@@ -2,6 +2,7 @@ import { Crepe } from '@milkdown/crepe';
 import { imageBlock } from '@milkdown/crepe/feature/image-block';
 import '@milkdown/crepe/theme/frame.css';
 import { forwardRef, useEffect, useImperativeHandle, useRef } from 'react';
+import { splitFrontmatter } from '../../utils/frontmatter';
 
 export interface MarkdownEditorHandle {
   /** Full markdown including the (preserved) frontmatter. */
@@ -17,13 +18,6 @@ interface Props {
   readOnly?: boolean;
 }
 
-function splitFrontmatter(md: string): { front: string; body: string } {
-  const match = md.match(/^---\n.*?\n---\n?/s);
-  if (match !== null && md.startsWith('---\n')) {
-    return { front: match[0], body: md.slice(match[0].length) };
-  }
-  return { front: '', body: md };
-}
 
 // Markdown-native WYSIWYG wrapper (design 05 S4, spike assets/editor-spike.md).
 // The editor only ever sees the body; frontmatter is re-attached on export so

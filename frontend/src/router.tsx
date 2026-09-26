@@ -24,7 +24,6 @@ const editElement = (mode: 'edit' | 'new') => (
 
 // W5 routes (design 05 S2 subset): + edit/new. Conflict/history/search/admin arrive later.
 export const router = createBrowserRouter([
-  { path: '/__roundtrip', lazy: () => import('./roundtrip-tmp/Runner').then(m => ({ Component: m.RoundtripRunner })) }, // TEMPORARY W5 acceptance, deleted before merge
   {
     element: (
       <RequireAuth>

@@ -19,6 +19,8 @@ import com.yuzhi.dts.wiki.repository.SpaceRepository;
 import com.yuzhi.dts.wiki.repository.SyncOutboxRepository;
 import com.yuzhi.dts.wiki.repository.UserRepository;
 import com.yuzhi.dts.wiki.security.SecurityUtils;
+import com.yuzhi.dts.wiki.service.wiki.content.ContentAnalysis;
+import com.yuzhi.dts.wiki.service.wiki.content.ContentService;
 import com.yuzhi.dts.wiki.service.wiki.dto.PageDtos;
 import com.yuzhi.dts.wiki.service.wiki.dto.SpaceDtos;
 import java.nio.charset.StandardCharsets;
@@ -55,6 +57,9 @@ public class PageService {
     private final UserRepository userRepository;
     private final SpaceAccessService spaceAccessService;
     private final TemplateService templateService;
+    private final ContentService contentService;
+    private final PageMetaDao pageMetaDao;
+    private final SearchIndexService searchIndexService;
     private final ObjectMapper objectMapper;
 
     public PageService(
@@ -66,6 +71,9 @@ public class PageService {
         UserRepository userRepository,
         SpaceAccessService spaceAccessService,
         TemplateService templateService,
+        ContentService contentService,
+        PageMetaDao pageMetaDao,
+        SearchIndexService searchIndexService,
         ObjectMapper objectMapper
     ) {
         this.pageRepository = pageRepository;
@@ -76,6 +84,9 @@ public class PageService {
         this.userRepository = userRepository;
         this.spaceAccessService = spaceAccessService;
         this.templateService = templateService;
+        this.contentService = contentService;
+        this.pageMetaDao = pageMetaDao;
+        this.searchIndexService = searchIndexService;
         this.objectMapper = objectMapper;
     }
 
@@ -161,6 +172,28 @@ public class PageService {
     }
 
     @Transactional(readOnly = true)
+    public PageDtos.PageIdResult resolveByDocId(String slug, String docId) {
+        Space space = findVisibleSpace(slug);
+        List<Page> pages = pageRepository.findLiveBySpace(space.getId());
+        return pages
+            .stream()
+            .flatMap(p -> pageMetaDao.findByPage(p.getId()).filter(m -> docId.equals(m.docId())).map(m -> p).stream())
+            .findFirst()
+            .map(p -> new PageDtos.PageIdResult(p.getId()))
+            .orElseThrow(() -> new SpaceNotVisibleException(slug + "#" + docId));
+    }
+
+    /** Raw schema JSON for the F3 properties form (null when unknown). */
+    @Transactional(readOnly = true)
+    public String contentSchema(String type) {
+        try (var in = new org.springframework.core.io.ClassPathResource("content-schemas/" + type + ".schema.json").getInputStream()) {
+            return new String(in.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    @Transactional(readOnly = true)
     public List<Page> trash(String slug) {
         Space space = findVisibleSpace(slug);
         return pageRepository
@@ -209,6 +242,14 @@ public class PageService {
 
     @Transactional
     public PageDtos.SaveContentResult saveContent(Long id, PageDtos.SaveContentRequest request) {
+        return saveContent(id, request, null);
+    }
+
+    @Transactional
+    public PageDtos.SaveContentResult saveContent(Long id, PageDtos.SaveContentRequest request, String viaAgent) {
+        if (viaAgent != null && !viaAgent.matches("[A-Za-z0-9._-]{1,50}")) {
+            throw new IllegalArgumentException("Invalid X-Wiki-Agent");
+        }
         Page page = pageRepository.findForUpdate(id).orElseThrow(() -> new SpaceNotVisibleException("page:" + id));
         spaceAccessService.requireWrite(page);
         if (page.getSyncStatus() == PageSyncStatus.CONFLICT) {
@@ -223,7 +264,7 @@ public class PageService {
         if (current != null && sha.equals(current.getContentSha256())) {
             return new PageDtos.SaveContentResult(currentNo); // I9: no new version
         }
-        addVersion(page, request.contentMd(), request.message(), VersionSource.WEB);
+        addVersion(page, request.contentMd(), request.message(), VersionSource.WEB, ContentService.Mode.STRICT, viaAgent);
         if (page.getKind() == PageKind.GIT) {
             markPendingPush(page, OutboxOp.WRITE, Map.of("gitPath", page.getGitPath()));
         }
@@ -315,6 +356,8 @@ public class PageService {
         page.setDeletedAt(now);
         page.setUpdatedAt(now);
         pageRepository.save(page);
+        pageMetaDao.deleteByPage(page.getId());
+        searchIndexService.delete(page.getId());
         for (Page child : liveChildren(page)) {
             deleteSubtree(child, now);
         }
@@ -335,6 +378,14 @@ public class PageService {
         page.setDeletedAt(null);
         page.setUpdatedAt(Instant.now());
         pageRepository.save(page);
+        // LENIENT: restores must never be blocked by tightened schemas.
+        PageVersion current = page.getCurrentVersion();
+        if (current != null) {
+            ContentAnalysis analysis = contentService.analyze(current.getContentMd(), ContentService.Mode.LENIENT, docId ->
+                pageMetaDao.docIdInSpace(page.getSpace().getId(), docId, page.getId()));
+            pageMetaDao.upsert(page.getSpace().getId(), page.getId(), analysis);
+            searchIndexService.upsert(page.getId(), page.getSpace().getId(), analysis.title() == null ? page.getTitle() : analysis.title(), String.join(" ", analysis.tags()), analysis.plainText());
+        }
         for (Page child : allChildren(page)) {
             if (child.getDeletedAt() != null) {
                 restoreSubtree(child);
@@ -377,6 +428,24 @@ public class PageService {
         List<String> labels = page.getLabelses().stream().map(l -> l.getName()).sorted().toList();
         String login = SecurityUtils.getCurrentUserLogin().orElse(null);
         boolean watching = login != null && pageWatchRepository.existsByPageIdAndUserLogin(page.getId(), login);
+        PageDtos.MetaView meta = pageMetaDao
+            .findByPage(page.getId())
+            .map(m ->
+                new PageDtos.MetaView(
+                    m.docType(),
+                    m.docId(),
+                    m.status(),
+                    m.owner(),
+                    m.priority(),
+                    m.tags(),
+                    m.depends(),
+                    m.related(),
+                    m.valid(),
+                    m.errors(),
+                    m.meta()
+                )
+            )
+            .orElse(null);
         return new PageDtos.PageView(
             page.getId(),
             page.getSpace().getSlug(),
@@ -393,11 +462,24 @@ public class PageService {
             crumbs,
             labels,
             watching,
-            spaceAccessService.canWrite(page)
+            spaceAccessService.canWrite(page),
+            meta,
+            "/s/" + page.getSpace().getSlug() + "/p/" + page.getId()
         );
     }
 
     private void addVersion(Page page, String contentMd, String message, VersionSource source) {
+        addVersion(page, contentMd, message, source, ContentService.Mode.STRICT, null);
+    }
+
+    private void addVersion(Page page, String contentMd, String message, VersionSource source, ContentService.Mode mode, String viaAgent) {
+        // DTS-MD v1 content contract (design 10 S3.1): analyze first (STRICT web saves
+        // reject invalid frontmatter with 422), then project to page_meta + search doc.
+        ContentAnalysis analysis = contentService.analyze(
+            contentMd,
+            mode,
+            docId -> pageMetaDao.docIdInSpace(page.getSpace().getId(), docId, page.getId() == null ? -1L : page.getId())
+        );
         PageVersion current = page.getCurrentVersion();
         int next = current == null ? 1 : current.getVersionNo() + 1;
         String login = SecurityUtils.getCurrentUserLogin().orElse("unknown");
@@ -409,12 +491,23 @@ public class PageService {
         version.setAuthorName(login);
         version.setSource(source);
         version.setMessage(message);
+        version.setViaAgent(viaAgent);
         version.setCreatedAt(Instant.now());
         userRepository.findOneByLogin(login).ifPresent(version::setAuthor);
         version = pageVersionRepository.save(version);
         page.setCurrentVersion(version);
         page.setUpdatedAt(Instant.now());
         pageRepository.save(page);
+        // flush first: page_meta has an FK to page(id) and JPA defers inserts.
+        pageRepository.flush();
+        pageMetaDao.upsert(page.getSpace().getId(), page.getId(), analysis);
+        searchIndexService.upsert(
+            page.getId(),
+            page.getSpace().getId(),
+            analysis.title() == null ? page.getTitle() : analysis.title(),
+            String.join(" ", analysis.tags()) + " " + (analysis.docId() == null ? "" : analysis.docId()),
+            analysis.plainText()
+        );
     }
 
     private void markPendingPush(Page page, OutboxOp op, Map<String, String> extra) {

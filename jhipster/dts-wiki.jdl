@@ -94,6 +94,10 @@ entity PageVersion {
   source VersionSource required
   gitCommit String maxlength(40)
   message String maxlength(500)
+  /** Agent behind a user-authored version (design 10 S3.4, B4). NOTE: generator was NOT
+      re-run for this field (it would wipe hand customizations); entity + DTO + 9005
+      changelog were updated by hand to match. */
+  viaAgent String maxlength(100)
   createdAt Instant required
 }
 

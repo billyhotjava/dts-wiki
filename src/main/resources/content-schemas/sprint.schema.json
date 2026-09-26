@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://yuzhicloud.com/schemas/wiki/sprint",
+  "title": "Sprint README frontmatter",
+  "type": "object",
+  "required": ["type", "id", "title", "status", "timebox", "goal"],
+  "properties": {
+    "type": { "const": "sprint" },
+    "id": { "type": "string", "pattern": "^sprint-[0-9]+$" },
+    "title": { "type": "string", "minLength": 1 },
+    "status": { "enum": ["DRAFT", "READY", "IN_PROGRESS", "DONE", "BLOCKED"] },
+    "timebox": {
+      "type": "object",
+      "required": ["start", "end"],
+      "properties": {
+        "start": { "type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$" },
+        "end": { "type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$" }
+      }
+    },
+    "goal": { "type": "string", "minLength": 1 },
+    "owner": { "type": "string" }
+  }
+}

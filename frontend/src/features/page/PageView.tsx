@@ -4,6 +4,7 @@ import { Link, useNavigate, useParams } from 'react-router';
 import { useDeletePage, usePage, useTree } from '../../api/hooks';
 import { AsyncState } from '../../components/AsyncState';
 import { MarkdownView } from '../../components/MarkdownView';
+import { PropertiesPanel } from './PropertiesPanel';
 
 // Page reading view (design 05 S3/S4 + 10 S4.6): breadcrumb, meta, tabs, ⋯ menu.
 // Internal enums are not shown as text: kind as icon, syncStatus only when abnormal.
@@ -52,6 +53,7 @@ export function PageView() {
             {data.syncStatus === 'CONFLICT' && <Tag color="red">冲突</Tag>}
             {data.versionNo !== null && <span>版本 {data.versionNo}</span>}
           </Space>
+          <PropertiesPanel page={data} />
           <Space style={{ marginTop: 8 }}>
             <Button type="primary" disabled={!data.editable} onClick={() => navigate(`/s/${slug}/p/${data.id}/edit`)}>
               编辑
@@ -78,7 +80,7 @@ export function PageView() {
                   data.contentMd === null ? (
                     <ChildCards slug={slug} children={findChildren(tree ?? [], data.id)} />
                   ) : (
-                    <MarkdownView content={data.contentMd} />
+                    <MarkdownView content={data.contentMd} pageId={data.id} spaceSlug={slug} />
                   ),
               },
               { key: 'attachments', label: '附件', children: <Typography.Text type="secondary">附件随 W4 后续任务到来</Typography.Text> },

@@ -2,11 +2,13 @@ package com.yuzhi.dts.wiki.web.rest.wiki;
 
 import com.yuzhi.dts.wiki.security.SecurityUtils;
 import com.yuzhi.dts.wiki.service.UserService;
+import com.yuzhi.dts.wiki.service.wiki.ContentReindexJob;
 import com.yuzhi.dts.wiki.service.wiki.PageService;
 import com.yuzhi.dts.wiki.service.wiki.TemplateService;
 import com.yuzhi.dts.wiki.service.wiki.dto.PageDtos;
 import com.yuzhi.dts.wiki.service.wiki.dto.SpaceDtos;
 import java.util.List;
+import java.util.Map;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -23,11 +25,20 @@ public class WikiSpaceResource {
     private final PageService pageService;
     private final TemplateService templateService;
     private final UserService userService;
+    private final ContentReindexJob contentReindexJob;
 
-    public WikiSpaceResource(PageService pageService, TemplateService templateService, UserService userService) {
+    public WikiSpaceResource(PageService pageService, TemplateService templateService, UserService userService, ContentReindexJob contentReindexJob) {
         this.pageService = pageService;
         this.templateService = templateService;
         this.userService = userService;
+        this.contentReindexJob = contentReindexJob;
+    }
+
+    /** Manual content backfill trigger (design 10 S3.2). */
+    @PostMapping("/admin/reindex")
+    @org.springframework.security.access.prepost.PreAuthorize("hasAuthority('ROLE_ADMIN')")
+    public void reindex() {
+        contentReindexJob.reindexMissing();
     }
 
     /** Single startup call for the frontend (design 10 S3.3): account + spaces + admin flag. */
@@ -72,6 +83,40 @@ public class WikiSpaceResource {
         return pageService.resolve(slug, path);
     }
 
+    /** Batch path→page resolution for rendered Markdown links (design 10 S4.4). */
+    @PostMapping("/spaces/{slug}/resolve-batch")
+    public Map<String, Long> resolveBatch(@PathVariable String slug, @RequestBody ResolveBatchRequest request) {
+        Map<String, Long> result = new java.util.LinkedHashMap<>();
+        if (request.paths() != null) {
+            for (String path : request.paths()) {
+                try {
+                    result.put(path, pageService.resolve(slug, path).pageId());
+                } catch (com.yuzhi.dts.wiki.service.wiki.SpaceNotVisibleException e) {
+                    result.put(path, null);
+                }
+            }
+        }
+        return result;
+    }
+
+    public record ResolveBatchRequest(java.util.List<String> paths) {}
+
+    /** JSON Schemas for frontmatter editing (design 10 S3.3, F3 form). */
+    @GetMapping("/content-schemas/{type}")
+    public ResponseEntity<String> contentSchema(@PathVariable String type) {
+        String json = pageService.contentSchema(type);
+        if (json == null) {
+            return ResponseEntity.notFound().build();
+        }
+        return ResponseEntity.ok().contentType(org.springframework.http.MediaType.parseMediaType("application/schema+json")).body(json);
+    }
+
+    /** docId → page for depends/related links (F3 panel). */
+    @GetMapping("/spaces/{slug}/pages/by-doc-id")
+    public PageDtos.PageIdResult byDocId(@PathVariable String slug, @RequestParam("docId") String docId) {
+        return pageService.resolveByDocId(slug, docId);
+    }
+
     @GetMapping("/spaces/{slug}/trash")
     public List<Long> trash(@PathVariable String slug) {
         return pageService.trash(slug).stream().map(p -> p.getId()).toList();
@@ -88,8 +133,12 @@ public class WikiSpaceResource {
     }
 
     @PutMapping("/pages/{id}/content")
-    public PageDtos.SaveContentResult saveContent(@PathVariable Long id, @RequestBody PageDtos.SaveContentRequest request) {
-        return pageService.saveContent(id, request);
+    public PageDtos.SaveContentResult saveContent(
+        @PathVariable Long id,
+        @RequestBody PageDtos.SaveContentRequest request,
+        @RequestHeader(value = "X-Wiki-Agent", required = false) String viaAgent
+    ) {
+        return pageService.saveContent(id, request, viaAgent);
     }
 
     @PatchMapping("/pages/{id}")

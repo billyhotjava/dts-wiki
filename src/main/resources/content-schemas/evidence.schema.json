@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://yuzhicloud.com/schemas/wiki/evidence",
+  "title": "Acceptance evidence frontmatter",
+  "type": "object",
+  "required": ["type", "id", "covers", "result"],
+  "properties": {
+    "type": { "const": "evidence" },
+    "id": { "type": "string", "minLength": 1 },
+    "covers": { "type": "array", "minItems": 1, "items": { "type": "string" } },
+    "result": { "enum": ["PASS", "FAIL", "PARTIAL"] },
+    "date": { "type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$" }
+  }
+}

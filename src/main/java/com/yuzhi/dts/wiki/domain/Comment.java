@@ -29,8 +29,8 @@ public class Comment implements Serializable {
     @Column(name = "id")
     private Long id;
 
-    @Lob
-    @Column(name = "body_md", nullable = false)
+    // DTS-WIKI: customized (W5b): @Lob removed, see PageVersion.contentMd.
+    @Column(name = "body_md", nullable = false, columnDefinition = "TEXT")
     private String bodyMd;
 
     /**

@@ -8,6 +8,20 @@ public final class PageDtos {
 
     private PageDtos() {}
 
+    public record MetaView(
+        String docType,
+        String docId,
+        String status,
+        String owner,
+        String priority,
+        java.util.List<String> tags,
+        java.util.List<String> depends,
+        java.util.List<String> related,
+        boolean valid,
+        java.util.List<java.util.Map<String, String>> errors,
+        java.util.Map<String, Object> fields
+    ) {}
+
     public record PageView(
         Long id,
         String spaceSlug,
@@ -24,7 +38,9 @@ public final class PageDtos {
         List<SpaceDtos.Breadcrumb> breadcrumbs,
         List<String> labels,
         boolean watching,
-        boolean editable
+        boolean editable,
+        MetaView meta,
+        String url
     ) {}
 
     public record CreatePageRequest(Long parentId, String title, String kind, String templateId, String contentMd) {
