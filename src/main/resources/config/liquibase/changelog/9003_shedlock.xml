@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+    <!-- DTS-WIKI: customized (Sprint-6 design 02 S3): ShedLock table so scheduled
+         jobs (GitSyncScheduler, TrashPurgeJob, ...) run on a single instance. -->
+    <changeSet id="9003-shedlock" author="dts-wiki">
+        <sql>CREATE TABLE IF NOT EXISTS shedlock (
+            name varchar(64) PRIMARY KEY,
+            lock_until timestamp NOT NULL,
+            locked_at timestamp NOT NULL,
+            locked_by varchar(255) NOT NULL
+        )</sql>
+    </changeSet>
+</databaseChangeLog>

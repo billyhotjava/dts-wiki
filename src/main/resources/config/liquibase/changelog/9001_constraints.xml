@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+    <!-- DTS-WIKI: customized (Sprint-6 design 02 S3): invariants I1, I4, I8, I9 support. -->
+    <changeSet id="9001-constraints" author="dts-wiki">
+        <sql>CREATE UNIQUE INDEX IF NOT EXISTS ux_page_space_gitpath ON page (space_id, git_path)
+            WHERE git_path IS NOT NULL AND deleted_at IS NULL</sql>
+        <sql>CREATE UNIQUE INDEX IF NOT EXISTS ux_page_version_no ON page_version (page_id, version_no)</sql>
+        <sql>CREATE UNIQUE INDEX IF NOT EXISTS ux_page_root ON page (space_id) WHERE parent_id IS NULL</sql>
+        <sql>CREATE UNIQUE INDEX IF NOT EXISTS ux_conflict_open ON sync_conflict (page_id) WHERE resolved_at IS NULL</sql>
+        <sql>CREATE UNIQUE INDEX IF NOT EXISTS ux_draft_user_page ON page_draft (page_id, user_id)</sql>
+        <sql>CREATE UNIQUE INDEX IF NOT EXISTS ux_watch_user_page ON page_watch (page_id, user_id)</sql>
+        <sql>CREATE UNIQUE INDEX IF NOT EXISTS ux_syncroot_path ON sync_root (space_id, repo_path)</sql>
+        <sql>CREATE INDEX IF NOT EXISTS ix_page_tree ON page (space_id, parent_id, position) WHERE deleted_at IS NULL</sql>
+        <sql>CREATE INDEX IF NOT EXISTS ix_outbox_pending ON sync_outbox (space_id, id) WHERE status = 'PENDING'</sql>
+        <sql>CREATE INDEX IF NOT EXISTS ix_activity_space_time ON activity_event (space_id, created_at DESC)</sql>
+        <sql>CREATE INDEX IF NOT EXISTS ix_notification_unread ON notification (recipient_id, created_at DESC) WHERE read_at IS NULL</sql>
+    </changeSet>
+</databaseChangeLog>

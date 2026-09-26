@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:ext="http://www.liquibase.org/xml/ns/dbchangelog-ext"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd
+                        http://www.liquibase.org/xml/ns/dbchangelog-ext http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-ext.xsd">
+    <!--
+        Added the constraints for entity SyncOutbox.
+    -->
+    <changeSet id="20231211063226-2" author="jhipster">
+
+        <addForeignKeyConstraint baseColumnNames="space_id"
+                                 baseTableName="sync_outbox"
+                                 constraintName="fk_sync_outbox__space_id"
+                                 referencedColumnNames="id"
+                                 referencedTableName="space"
+                                 />
+
+        <addForeignKeyConstraint baseColumnNames="page_id"
+                                 baseTableName="sync_outbox"
+                                 constraintName="fk_sync_outbox__page_id"
+                                 referencedColumnNames="id"
+                                 referencedTableName="page"
+                                 />
+    </changeSet>
+</databaseChangeLog>

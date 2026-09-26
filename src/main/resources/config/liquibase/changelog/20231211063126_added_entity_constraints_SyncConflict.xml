@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:ext="http://www.liquibase.org/xml/ns/dbchangelog-ext"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd
+                        http://www.liquibase.org/xml/ns/dbchangelog-ext http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-ext.xsd">
+    <!--
+        Added the constraints for entity SyncConflict.
+    -->
+    <changeSet id="20231211063126-2" author="jhipster">
+
+        <addForeignKeyConstraint baseColumnNames="page_id"
+                                 baseTableName="sync_conflict"
+                                 constraintName="fk_sync_conflict__page_id"
+                                 referencedColumnNames="id"
+                                 referencedTableName="page"
+                                 />
+
+        <addForeignKeyConstraint baseColumnNames="base_version_id"
+                                 baseTableName="sync_conflict"
+                                 constraintName="fk_sync_conflict__base_version_id"
+                                 referencedColumnNames="id"
+                                 referencedTableName="page_version"
+                                 />
+
+        <addForeignKeyConstraint baseColumnNames="wiki_version_id"
+                                 baseTableName="sync_conflict"
+                                 constraintName="fk_sync_conflict__wiki_version_id"
+                                 referencedColumnNames="id"
+                                 referencedTableName="page_version"
+                                 />
+
+        <addForeignKeyConstraint baseColumnNames="resolved_by_id"
+                                 baseTableName="sync_conflict"
+                                 constraintName="fk_sync_conflict__resolved_by_id"
+                                 referencedColumnNames="id"
+                                 referencedTableName="jhi_user"
+                                 />
+    </changeSet>
+</databaseChangeLog>

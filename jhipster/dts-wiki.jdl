@@ -8,6 +8,10 @@
  * versions, comments etc. are hand-written under /api/wiki/** and enforce space access.
  *
  * skipClient: the UI is a separate React + antd app in frontend/ (design 05), bundled into the jar.
+ * oauth2 apps must not use password user management: skipUserManagement stays true
+ * (JHipster 9.2 generates a password-based DomainUserDetailsService otherwise,
+ * which does not compile against the oauth2 User). Users sync from Keycloak
+ * tokens via UserService; admins manage spaces, not users (design 05 S7).
  */
 
 application {
@@ -28,7 +32,7 @@ application {
     nativeLanguage zh-cn
     languages [zh-cn, en]
     serverPort 8080
-    skipUserManagement false
+    skipUserManagement true
   }
   entities *
 }

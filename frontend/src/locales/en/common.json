@@ -1,0 +1,7 @@
+{
+  "home": {
+    "welcome": "Welcome to DTS Wiki",
+    "hello": "Hello, {{name}}",
+    "spacesHint": "Product spaces you can read will show up here"
+  }
+}

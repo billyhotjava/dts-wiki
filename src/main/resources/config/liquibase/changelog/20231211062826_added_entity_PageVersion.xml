@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="utf-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:ext="http://www.liquibase.org/xml/ns/dbchangelog-ext"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd
+                        http://www.liquibase.org/xml/ns/dbchangelog-ext http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-ext.xsd">
+
+    <!--
+        Added the entity PageVersion.
+    -->
+    <changeSet id="20231211062826-1" author="jhipster">
+        <createTable tableName="page_version" remarks="Immutable full-content snapshot of a page">
+            <column name="id" type="bigint">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="version_no" type="integer">
+                <constraints nullable="false" />
+            </column>
+            <column name="content_md" type="${clobType}">
+                <constraints nullable="false" />
+            </column>
+            <column name="content_sha_256" type="varchar(64)">
+                <constraints nullable="false" />
+            </column>
+            <column name="author_name" type="varchar(100)" remarks="jhi_user login when authored in the wiki; git author name otherwise">
+                <constraints nullable="false" />
+            </column>
+            <column name="author_email" type="varchar(254)">
+                <constraints nullable="true" />
+            </column>
+            <column name="source" type="varchar(255)">
+                <constraints nullable="false" />
+            </column>
+            <column name="git_commit" type="varchar(40)">
+                <constraints nullable="true" />
+            </column>
+            <column name="message" type="varchar(500)">
+                <constraints nullable="true" />
+            </column>
+            <column name="created_at" type="${datetimeType}">
+                <constraints nullable="false" />
+            </column>
+            <column name="author_id" type="varchar(100)">
+                <constraints nullable="true" />
+            </column>
+            <column name="page_id" type="bigint">
+                <constraints nullable="false" />
+            </column>
+            <!-- jhipster-needle-liquibase-add-column - JHipster will add columns here -->
+        </createTable>
+        <dropDefaultValue tableName="page_version" columnName="created_at" columnDataType="${datetimeType}"/>
+    </changeSet>
+
+    <!-- jhipster-needle-liquibase-add-changeset - JHipster will add changesets here -->
+
+    <!--
+        Load sample data generated with Faker.js
+        - This data can be easily edited using a CSV editor (or even MS Excel) and
+          is located in the 'src/main/resources/config/liquibase/fake-data' directory
+        - By default this data is applied when running with the JHipster 'dev' profile.
+          This can be customized by adding or removing 'faker' in the 'spring.liquibase.contexts'
+          Spring Boot configuration key.
+    -->
+    <changeSet id="20231211062826-1-data" author="jhipster" context="faker">
+        <loadData
+                  file="../fake-data/page_version.csv"
+                  relativeToChangelogFile="true"
+                  separator=";"
+                  tableName="page_version"
+                  usePreparedStatements="true">
+            <column name="id" type="numeric"/>
+            <column name="version_no" type="numeric"/>
+            <column name="content_md" type="clob"/>
+            <column name="content_sha_256" type="string"/>
+            <column name="author_name" type="string"/>
+            <column name="author_email" type="string"/>
+            <column name="source" type="string"/>
+            <column name="git_commit" type="string"/>
+            <column name="message" type="string"/>
+            <column name="created_at" type="date"/>
+            <column name="page_id" type="numeric"/>
+            <!-- jhipster-needle-liquibase-add-loadcolumn - JHipster (and/or extensions) can add load columns here -->
+        </loadData>
+    </changeSet>
+</databaseChangeLog>

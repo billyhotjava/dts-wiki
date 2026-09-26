@@ -1,0 +1,7 @@
+{
+  "home": {
+    "welcome": "欢迎使用 DTS Wiki",
+    "hello": "你好，{{name}}",
+    "spacesHint": "你有权限的产品空间将显示在这里"
+  }
+}

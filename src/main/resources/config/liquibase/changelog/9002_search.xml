@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+    <!-- DTS-WIKI: customized (Sprint-6 design 02 S3): retrieval document, one row per
+         page holding the LATEST version only. Maintained by SearchIndexService via
+         JdbcTemplate (not a JHipster entity, no REST). -->
+    <changeSet id="9002-search" author="dts-wiki">
+        <sql>CREATE TABLE IF NOT EXISTS page_search_doc (
+            page_id    bigint PRIMARY KEY REFERENCES page(id) ON DELETE CASCADE,
+            space_id   bigint NOT NULL REFERENCES space(id),
+            title      text   NOT NULL,
+            body       text   NOT NULL,
+            updated_at timestamptz NOT NULL
+        )</sql>
+        <sql>CREATE INDEX IF NOT EXISTS ix_search_title ON page_search_doc USING gin (title gin_bigm_ops)</sql>
+        <sql>CREATE INDEX IF NOT EXISTS ix_search_body ON page_search_doc USING gin (body gin_bigm_ops)</sql>
+        <sql>CREATE INDEX IF NOT EXISTS ix_search_space ON page_search_doc (space_id)</sql>
+    </changeSet>
+</databaseChangeLog>

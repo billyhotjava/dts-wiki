@@ -1,0 +1,27 @@
+{
+  "annotations": {
+    "changelogDate": "20231211063726"
+  },
+  "applications": ["dtsWiki"],
+  "dto": "mapstruct",
+  "fields": [
+    {
+      "fieldName": "name",
+      "fieldType": "String",
+      "fieldValidateRules": ["required", "unique", "maxlength"],
+      "fieldValidateRulesMaxlength": "50"
+    }
+  ],
+  "name": "Label",
+  "relationships": [
+    {
+      "otherEntityName": "page",
+      "otherEntityRelationshipName": "labels",
+      "relationshipName": "pages",
+      "relationshipSide": "right",
+      "relationshipType": "many-to-many"
+    }
+  ],
+  "searchEngine": "no",
+  "service": "serviceImpl"
+}

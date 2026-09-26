@@ -1,0 +1,24 @@
+package com.yuzhi.dts.wiki.service.mapper;
+
+import static com.yuzhi.dts.wiki.domain.CommentAsserts.*;
+import static com.yuzhi.dts.wiki.domain.CommentTestSamples.*;
+
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+
+class CommentMapperTest {
+
+    private CommentMapper commentMapper;
+
+    @BeforeEach
+    void setUp() {
+        commentMapper = new CommentMapperImpl();
+    }
+
+    @Test
+    void shouldConvertToDtoAndBack() {
+        var expected = getCommentSample1();
+        var actual = commentMapper.toEntity(commentMapper.toDto(expected));
+        assertCommentAllPropertiesEquals(expected, actual);
+    }
+}

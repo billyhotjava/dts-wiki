@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="utf-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:ext="http://www.liquibase.org/xml/ns/dbchangelog-ext"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd
+                        http://www.liquibase.org/xml/ns/dbchangelog-ext http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-ext.xsd">
+
+    <!--
+        Added the entity SyncOutbox.
+    -->
+    <changeSet id="20231211063226-1" author="jhipster">
+        <createTable tableName="sync_outbox" remarks="Outbound (wiki -&gt; git) work item, written in the same transaction as the page change">
+            <column name="id" type="bigint">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="op" type="varchar(255)">
+                <constraints nullable="false" />
+            </column>
+            <column name="payload" type="${clobType}" remarks="JSON: {fromPath,toPath,versionId,attachmentId,...}">
+                <constraints nullable="false" />
+            </column>
+            <column name="actor_login" type="varchar(50)">
+                <constraints nullable="false" />
+            </column>
+            <column name="actor_name" type="varchar(100)">
+                <constraints nullable="true" />
+            </column>
+            <column name="actor_email" type="varchar(254)">
+                <constraints nullable="true" />
+            </column>
+            <column name="status" type="varchar(255)">
+                <constraints nullable="false" />
+            </column>
+            <column name="attempts" type="integer">
+                <constraints nullable="false" />
+            </column>
+            <column name="last_error" type="${clobType}">
+                <constraints nullable="true" />
+            </column>
+            <column name="created_at" type="${datetimeType}">
+                <constraints nullable="false" />
+            </column>
+            <column name="processed_at" type="${datetimeType}">
+                <constraints nullable="true" />
+            </column>
+            <column name="space_id" type="bigint">
+                <constraints nullable="false" />
+            </column>
+            <column name="page_id" type="bigint">
+                <constraints nullable="true" />
+            </column>
+            <!-- jhipster-needle-liquibase-add-column - JHipster will add columns here -->
+        </createTable>
+        <dropDefaultValue tableName="sync_outbox" columnName="created_at" columnDataType="${datetimeType}"/>
+        <dropDefaultValue tableName="sync_outbox" columnName="processed_at" columnDataType="${datetimeType}"/>
+    </changeSet>
+
+    <!-- jhipster-needle-liquibase-add-changeset - JHipster will add changesets here -->
+
+    <!--
+        Load sample data generated with Faker.js
+        - This data can be easily edited using a CSV editor (or even MS Excel) and
+          is located in the 'src/main/resources/config/liquibase/fake-data' directory
+        - By default this data is applied when running with the JHipster 'dev' profile.
+          This can be customized by adding or removing 'faker' in the 'spring.liquibase.contexts'
+          Spring Boot configuration key.
+    -->
+    <changeSet id="20231211063226-1-data" author="jhipster" context="faker">
+        <loadData
+                  file="../fake-data/sync_outbox.csv"
+                  relativeToChangelogFile="true"
+                  separator=";"
+                  tableName="sync_outbox"
+                  usePreparedStatements="true">
+            <column name="id" type="numeric"/>
+            <column name="op" type="string"/>
+            <column name="payload" type="clob"/>
+            <column name="actor_login" type="string"/>
+            <column name="actor_name" type="string"/>
+            <column name="actor_email" type="string"/>
+            <column name="status" type="string"/>
+            <column name="attempts" type="numeric"/>
+            <column name="last_error" type="clob"/>
+            <column name="created_at" type="date"/>
+            <column name="processed_at" type="date"/>
+            <column name="space_id" type="numeric"/>
+            <!-- jhipster-needle-liquibase-add-loadcolumn - JHipster (and/or extensions) can add load columns here -->
+        </loadData>
+    </changeSet>
+</databaseChangeLog>

@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+    <!-- DTS-WIKI: customized (Sprint-6 design 02 S3): trigram alternative is NOT used;
+         retrieval relies on pg_bigm (decision W-ADR-8). Requires the custom
+         dts-wiki-db image (src/main/docker/postgres.Dockerfile). -->
+    <changeSet id="9000-extensions" author="dts-wiki">
+        <sql>CREATE EXTENSION IF NOT EXISTS pg_bigm</sql>
+    </changeSet>
+</databaseChangeLog>

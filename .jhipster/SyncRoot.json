@@ -1,0 +1,44 @@
+{
+  "annotations": {
+    "changelogDate": "20231211062526"
+  },
+  "applications": ["dtsWiki"],
+  "documentation": "A directory of the space's git repository mounted into the page tree",
+  "dto": "mapstruct",
+  "fields": [
+    {
+      "documentation": "path inside the repository, e.g. \"worklog\"",
+      "fieldName": "repoPath",
+      "fieldType": "String",
+      "fieldValidateRules": ["required", "maxlength"],
+      "fieldValidateRulesMaxlength": "255"
+    },
+    {
+      "fieldName": "enabled",
+      "fieldType": "Boolean",
+      "fieldValidateRules": ["required"]
+    }
+  ],
+  "name": "SyncRoot",
+  "relationships": [
+    {
+      "documentation": "mount point of the SyncRoot inside the space's page tree (a FOLDER page)",
+      "otherEntityField": "title",
+      "otherEntityName": "page",
+      "relationshipName": "mountPage",
+      "relationshipSide": "left",
+      "relationshipType": "many-to-one"
+    },
+    {
+      "otherEntityField": "slug",
+      "otherEntityName": "space",
+      "otherEntityRelationshipName": "syncRoots",
+      "relationshipName": "space",
+      "relationshipSide": "right",
+      "relationshipType": "many-to-one",
+      "relationshipValidateRules": "required"
+    }
+  ],
+  "searchEngine": "no",
+  "service": "serviceImpl"
+}

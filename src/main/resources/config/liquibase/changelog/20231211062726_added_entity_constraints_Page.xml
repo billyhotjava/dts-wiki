@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:ext="http://www.liquibase.org/xml/ns/dbchangelog-ext"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd
+                        http://www.liquibase.org/xml/ns/dbchangelog-ext http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-ext.xsd">
+    <!--
+        Added the constraints for entity Page.
+    -->
+    <changeSet id="20231211062726-2" author="jhipster">
+
+        <addForeignKeyConstraint baseColumnNames="current_version_id"
+                                 baseTableName="page"
+                                 constraintName="fk_page__current_version_id"
+                                 referencedColumnNames="id"
+                                 referencedTableName="page_version"
+                                 />
+
+        <addForeignKeyConstraint baseColumnNames="page_id"
+                                 baseTableName="rel_page__labels"
+                                 constraintName="fk_rel_page__labels__page_id"
+                                 referencedColumnNames="id"
+                                 referencedTableName="page"
+                                 />
+
+        <addForeignKeyConstraint baseColumnNames="labels_id"
+                                 baseTableName="rel_page__labels"
+                                 constraintName="fk_rel_page__labels__labels_id"
+                                 referencedColumnNames="id"
+                                 referencedTableName="label"
+                                 />
+
+        <addForeignKeyConstraint baseColumnNames="space_id"
+                                 baseTableName="page"
+                                 constraintName="fk_page__space_id"
+                                 referencedColumnNames="id"
+                                 referencedTableName="space"
+                                 />
+
+        <addForeignKeyConstraint baseColumnNames="parent_id"
+                                 baseTableName="page"
+                                 constraintName="fk_page__parent_id"
+                                 referencedColumnNames="id"
+                                 referencedTableName="page"
+                                 />
+    </changeSet>
+</databaseChangeLog>
