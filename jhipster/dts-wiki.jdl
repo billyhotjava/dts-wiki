@@ -1,12 +1,13 @@
 /*
  * DTS Wiki v1 — JHipster domain model.
- * Generate:  cd <repo root> && npx generator-jhipster@<see docs/design/00 D2> jdl jhipster/dts-wiki.jdl
- * Design:    docs/design/02-领域模型.md (constraints, indexes and custom Liquibase changes not expressible here)
+ * Generate:  cd <repo root> && npx generator-jhipster@<see design 00 D2> jdl jhipster/dts-wiki.jdl
+ * Design:    dts-rdc worklog/v1.0.0/sprint-6-202610/features/F0-基线与技术选型spike/design/
+ *            (02-领域模型.md: constraints, indexes and custom Liquibase changes not expressible here)
  *
  * Generated entity REST resources (/api/<entity>) are ADMIN-ONLY (see 03 §4). Business APIs for pages,
  * versions, comments etc. are hand-written under /api/wiki/** and enforce space access.
  *
- * skipClient: the UI is a separate React + antd app in frontend/ (docs/design/05), bundled into the jar.
+ * skipClient: the UI is a separate React + antd app in frontend/ (design 05), bundled into the jar.
  */
 
 application {

@@ -6,12 +6,18 @@ PostgreSQL as source of truth, bidirectional sync with product git
 repositories (`docs/`, `worklog/`). Planning lives in the dts-rdc repo:
 `worklog/v1.0.0/sprint-6-202610/`.
 
-## Read first
-1. `docs/design/08-编码任务与交接说明.md` — work order, hard constraints, definition of done
-2. `docs/design/00`–`07` — architecture decisions, domain model, backend, git sync, frontend, deployment, tests
+## Read first (design lives in the dts-rdc worklog; this repo is its submodule `dts-wiki/`)
+1. `../worklog/v1.0.0/sprint-6-202610/features/F0-基线与技术选型spike/design/08-编码任务与交接说明.md` — work order, hard constraints, definition of done
+2. `../worklog/v1.0.0/sprint-6-202610/features/F0-基线与技术选型spike/design/00`–`07` — architecture decisions, domain model, backend, git sync, frontend, deployment, tests
 3. `jhipster/dts-wiki.jdl` — the only place to change entities (regenerate after editing)
 
+If this repo is checked out on its own, the same files are at
+https://github.com/billyhotjava/dts-rdc/tree/main/worklog/v1.0.0/sprint-6-202610/features
+
 ## Hard rules
+- Documents: everything development-related (design, plans, spike results, task notes, acceptance evidence)
+  goes into the dts-rdc `worklog/` (Sprint-6 feature/task, `assets/`, `it/`). This repo's `docs/` holds only
+  formal documents: product/user documentation, external docs, operations runbook.
 - Entities change only via the JDL + generator; hand edits to generated code are marked `// DTS-WIKI: customized`.
 - Business endpoints only under `/api/wiki/**` and always through `SpaceAccessService`; generated entity endpoints are ROLE_ADMIN only.
 - Git commands only in `service.wiki.sync`; never `push --force`; writes only inside configured sync roots.
