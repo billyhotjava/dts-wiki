@@ -1,7 +1,8 @@
 # DTS Wiki — project instructions
 
 Internal Confluence-style wiki for DTS (future DTS knowledge center). JHipster 9 monolith
-(Spring Boot + React), PostgreSQL as source of truth, bidirectional sync with product git
+backend (skipClient) + React/antd frontend in `frontend/` bundled into the same jar,
+PostgreSQL as source of truth, bidirectional sync with product git
 repositories (`docs/`, `worklog/`). Planning lives in the dts-rdc repo:
 `worklog/v1.0.0/sprint-6-202610/`.
 

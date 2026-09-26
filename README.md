@@ -2,7 +2,7 @@
 
 Confluence 式内部知识协作平台（DTS 知识中心雏形）。
 
-- 架构：JHipster 9 单体（Spring Boot + React），Keycloak 统一登录，PostgreSQL 为唯一事实源
+- 架构：JHipster 9 单体后端（skipClient）+ `frontend/` React + antd 前端（打进同一个 jar），Keycloak 统一登录，PostgreSQL 为唯一事实源
 - 研发文档：与各产品 git 仓库的 `docs/`、`worklog/` 双向同步（≤ 60 s），冲突进入人工三方合并
 - 权限：到产品空间一级
 

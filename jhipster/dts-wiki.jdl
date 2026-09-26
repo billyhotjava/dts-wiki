@@ -5,6 +5,8 @@
  *
  * Generated entity REST resources (/api/<entity>) are ADMIN-ONLY (see 03 §4). Business APIs for pages,
  * versions, comments etc. are hand-written under /api/wiki/** and enforce space access.
+ *
+ * skipClient: the UI is a separate React + antd app in frontend/ (docs/design/05), bundled into the jar.
  */
 
 application {
@@ -14,8 +16,7 @@ application {
     packageName com.yuzhi.dts.wiki
     authenticationType oauth2
     buildTool maven
-    clientFramework react
-    clientBundler vite
+    skipClient true
     databaseType sql
     devDatabaseType postgresql
     prodDatabaseType postgresql
@@ -26,7 +27,6 @@ application {
     nativeLanguage zh-cn
     languages [zh-cn, en]
     serverPort 8080
-    testFrameworks [cypress]
     skipUserManagement false
   }
   entities *
@@ -224,5 +224,3 @@ service * with serviceImpl
 paginate Page, PageVersion, Comment, Notification, ActivityEvent, SyncOutbox, SyncConflict with pagination
 filter Page, PageVersion, ActivityEvent, Notification
 readOnly PageVersion, ActivityEvent
-/* Confluence-style UI is hand-written; generated CRUD screens exist only for admin tables */
-skipClient Page, PageVersion, Attachment, Comment, SyncState, SyncConflict, SyncOutbox, PageDraft, PageWatch, Notification, ActivityEvent, Label
