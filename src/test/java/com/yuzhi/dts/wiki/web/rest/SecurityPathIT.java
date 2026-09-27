@@ -78,4 +78,19 @@ class SecurityPathIT {
     void bootstrapRequiresLogin() throws Exception {
         mockMvc.perform(get("/api/wiki/bootstrap")).andExpect(status().isUnauthorized());
     }
+
+    @Test
+    @WithMockUser(authorities = { "ROLE_ADMIN" })
+    void mentionListsUsers() throws Exception {
+        mockMvc
+            .perform(get("/api/wiki/users/mention").param("spaceSlug", "prs"))
+            .andExpect(status().isOk())
+            .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$").isArray());
+    }
+
+    @Test
+    @WithMockUser(authorities = { "ROLE_USER" })
+    void mentionWithoutSpaceAccessIs404() throws Exception {
+        mockMvc.perform(get("/api/wiki/users/mention").param("spaceSlug", "prs")).andExpect(status().isNotFound());
+    }
 }

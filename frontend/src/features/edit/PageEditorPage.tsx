@@ -1,11 +1,15 @@
-import { Alert, Button, Input, Select, Space, Spin, Typography, message } from 'antd';
+import { Alert, Button, Input, Segmented, Select, Space, Spin, Tabs, Typography, message } from 'antd';
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router';
 import { uploadAttachment, useCreatePage, usePage, useSavePageContent, useTemplates, type PageView } from '../../api/hooks';
 import { splitFrontmatter } from '../../utils/frontmatter';
 import { AsyncState } from '../../components/AsyncState';
+import { AttachmentsTab } from './AttachmentsTab';
 import { MarkdownEditor, type MarkdownEditorHandle } from './MarkdownEditor';
+import { MentionPicker } from './MentionPicker';
+import { minimalDiff } from './minimalDiff';
 import { PropertiesForm } from './PropertiesForm';
+import { SourceEditor, type SourceEditorHandle } from './SourceEditor';
 import { VersionConflictModal } from './VersionConflictModal';
 
 // Page editing (design 05 S4 + 10 S4.3): title, properties (frontmatter), save
@@ -33,7 +37,11 @@ export function PageEditorPage({ mode }: { mode: 'edit' | 'new' }) {
   const [conflict, setConflict] = useState<number | null>(null);
   const [frontmatterErrors, setFrontmatterErrors] = useState<string[]>([]);
   const [createdId, setCreatedId] = useState<number | null>(null);
+  const [sourceMode, setSourceMode] = useState(false);
+  const [sourceInit, setSourceInit] = useState('');
+  const [mentionOpen, setMentionOpen] = useState(false);
   const editorRef = useRef<MarkdownEditorHandle>(null);
+  const sourceRef = useRef<SourceEditorHandle>(null);
   const effectiveId = id ?? createdId;
 
   useEffect(() => {
@@ -47,6 +55,31 @@ export function PageEditorPage({ mode }: { mode: 'edit' | 'new' }) {
 
   const currentBase = (p: PageView | undefined) => p?.versionNo ?? 0;
 
+  const fullNow = (): string => {
+    if (sourceMode) {
+      return sourceRef.current?.getMarkdown() ?? frontmatter + (content ?? '');
+    }
+    return editorRef.current?.getMarkdown() ?? frontmatter + (content ?? '');
+  };
+
+  const toggleSourceMode = () => {
+    const { front, body } = splitFrontmatter(fullNow());
+    setFrontmatter(front);
+    setContent(body);
+    setSourceInit(front + body);
+    setSourceMode(!sourceMode);
+  };
+
+  const insertMention = (login: string) => {
+    setMentionOpen(false);
+    const text = `@${login} `;
+    if (sourceMode) {
+      sourceRef.current?.insertText(text);
+    } else {
+      editorRef.current?.insertText(text);
+    }
+  };
+
   // editor emits full markdown (frontmatter + body); the form owns frontmatter,
   // so only the body part is tracked here.
   const handleEditorChange = (full: string) => {
@@ -54,8 +87,19 @@ export function PageEditorPage({ mode }: { mode: 'edit' | 'new' }) {
   };
 
   const composeSaveBody = (): string => {
+    // design 10 S4.1: only blocks the user touched leave the editor's serialization;
+    // everything else keeps original bytes (or the template for new pages).
+    // Source mode edits raw text: stored verbatim, bypassing minimalDiff.
+    if (sourceMode) {
+      return sourceRef.current?.getMarkdown() ?? content ?? '';
+    }
     const editorFull = editorRef.current?.getMarkdown() ?? content ?? '';
-    return frontmatter + splitFrontmatter(editorFull).body;
+    const editorBody = splitFrontmatter(editorFull).body;
+    if (mode === 'new') {
+      return frontmatter + editorBody;
+    }
+    const originalBody = splitFrontmatter(page?.contentMd ?? '').body;
+    return frontmatter + minimalDiff(originalBody, editorBody);
   };
 
   const doSave = async (force = false) => {
@@ -104,6 +148,12 @@ export function PageEditorPage({ mode }: { mode: 'edit' | 'new' }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [content, title, messageText, createdId, page]);
 
+  const handleSourceChange = (full: string) => {
+    const { front, body } = splitFrontmatter(full);
+    setFrontmatter(front);
+    setContent(body);
+  };
+
   const handleUpload = async (file: File): Promise<string> => {
     let pid = effectiveId;
     if (pid === null) {
@@ -142,12 +192,39 @@ export function PageEditorPage({ mode }: { mode: 'edit' | 'new' }) {
         )}
         <PropertiesForm initialYaml={frontmatter} onChange={setFrontmatter} />
         {frontmatterErrors.length > 0 && <Alert type="error" showIcon message="属性不合规，内容未保存" description={frontmatterErrors.join('；')} />}
-        <MarkdownEditor
-          key={`${mode}-${effectiveId ?? 'new'}-${templateId ?? ''}`}
-          ref={editorRef}
-          value={initial}
-          onChange={handleEditorChange}
-          onUploadImage={handleUpload}
+        <Tabs
+          items={[
+            {
+              key: 'content',
+              label: '正文',
+              children: (
+                <>
+                  <Space style={{ marginBottom: 8 }}>
+                    <Segmented
+                      value={sourceMode ? 'source' : 'wysiwyg'}
+                      onChange={v => (v === 'source' ? !sourceMode && toggleSourceMode() : sourceMode && toggleSourceMode())}
+                      options={[{ value: 'wysiwyg', label: '所见即所得' }, { value: 'source', label: '源码' }]}
+                    />
+                    <Button onMouseDown={e => e.preventDefault()} onClick={() => setMentionOpen(true)}>
+                      ＠提及
+                    </Button>
+                  </Space>
+                  {sourceMode ? (
+                    <SourceEditor key={`src-${effectiveId ?? 'new'}`} ref={sourceRef} value={sourceInit} onChange={handleSourceChange} />
+                  ) : (
+                    <MarkdownEditor
+                      key={`${mode}-${effectiveId ?? 'new'}-${templateId ?? ''}`}
+                      ref={editorRef}
+                      value={initial}
+                      onChange={handleEditorChange}
+                      onUploadImage={handleUpload}
+                    />
+                  )}
+                </>
+              ),
+            },
+            { key: 'attachments', label: '附件', children: <AttachmentsTab pageId={effectiveId} /> },
+          ]}
         />
         <Space>
           <Input value={messageText} onChange={e => setMessageText(e.target.value)} placeholder="保存说明（可选）" style={{ width: 280 }} />
@@ -171,6 +248,7 @@ export function PageEditorPage({ mode }: { mode: 'edit' | 'new' }) {
           void doSave(true);
         }}
       />
+      <MentionPicker open={mentionOpen} spaceSlug={slug} onPick={insertMention} onCancel={() => setMentionOpen(false)} />
     </>
   );
 }

@@ -1,12 +1,15 @@
 import { Crepe } from '@milkdown/crepe';
 import { imageBlock } from '@milkdown/crepe/feature/image-block';
 import '@milkdown/crepe/theme/frame.css';
+import { editorViewCtx } from '@milkdown/kit/core';
 import { forwardRef, useEffect, useImperativeHandle, useRef } from 'react';
 import { splitFrontmatter } from '../../utils/frontmatter';
 
 export interface MarkdownEditorHandle {
   /** Full markdown including the (preserved) frontmatter. */
   getMarkdown: () => string;
+  /** Insert text at the current cursor (used by @mention picker). */
+  insertText: (text: string) => void;
 }
 
 interface Props {
@@ -18,6 +21,15 @@ interface Props {
   readOnly?: boolean;
 }
 
+
+// GitHub-alerts callouts (E2): Milkdown escapes `[!NOTE]` to `\[!NOTE]` inside
+// blockquotes, which breaks alert detection in GitHub and our renderer.
+// Unescape only at blockquote starts (same lines the parser will treat as alerts).
+// A full callout NodeView (antd Alert styling) + `/` menu insertion is follow-up
+// polish; content integrity is what matters here and is covered by tests.
+export function restoreCallouts(md: string): string {
+  return md.replace(/^((?:> ?)+)\\\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]/gm, '$1[!$2]');
+}
 
 // Markdown-native WYSIWYG wrapper (design 05 S4, spike assets/editor-spike.md).
 // The editor only ever sees the body; frontmatter is re-attached on export so
@@ -53,9 +65,10 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, Props>(function M
     }
     crepe.on(listener => {
       listener.markdownUpdated((_ctx, markdown) => {
-        if (markdown !== lastEmittedRef.current) {
-          lastEmittedRef.current = markdown;
-          onChangeRef.current(frontRef.current + markdown);
+        const restored = restoreCallouts(markdown);
+        if (restored !== lastEmittedRef.current) {
+          lastEmittedRef.current = restored;
+          onChangeRef.current(frontRef.current + restored);
         }
       });
     });
@@ -69,7 +82,17 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, Props>(function M
   }, []);
 
   useImperativeHandle(ref, () => ({
-    getMarkdown: () => frontRef.current + (crepeRef.current?.getMarkdown() ?? lastEmittedRef.current),
+    getMarkdown: () => frontRef.current + restoreCallouts(crepeRef.current?.getMarkdown() ?? lastEmittedRef.current),
+    insertText: text => {
+      const crepe = crepeRef.current;
+      if (crepe === null) return;
+      crepe.editor.action(ctx => {
+        const view = ctx.get(editorViewCtx);
+        const { from, to } = view.state.selection;
+        view.dispatch(view.state.tr.insertText(text, from, to));
+        view.focus();
+      });
+    },
   }));
 
   return <div ref={rootRef} />;

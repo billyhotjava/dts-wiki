@@ -189,6 +189,24 @@ export function useSavePageContent() {
   });
 }
 
+export interface AttachmentItem {
+  id: number;
+  fileName: string;
+  mimeType: string;
+  size: number;
+  url: string;
+  markdown: string;
+}
+
+export function useAttachments(pageId: number | null) {
+  return useQuery({
+    queryKey: ['attachments', pageId],
+    queryFn: async () => (await api.get<AttachmentItem[]>(`/api/wiki/pages/${pageId}/attachments`)).data,
+    enabled: pageId !== null,
+    staleTime: 30_000,
+  });
+}
+
 export async function uploadAttachment(pageId: number, file: File): Promise<string> {
   const form = new FormData();
   form.append('file', file);

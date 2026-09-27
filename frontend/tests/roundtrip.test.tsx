@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { createRef } from 'react';
 import { describe, expect, it } from 'vitest';
 import { MarkdownEditor, type MarkdownEditorHandle } from '../src/features/edit/MarkdownEditor';
+import { minimalDiff } from '../src/features/edit/minimalDiff';
 
 const DIR = join(import.meta.dirname, 'fixtures/md');
 const FILES = readdirSync(DIR)
@@ -24,24 +25,17 @@ async function exportOf(input: string): Promise<{ out: string; changed: number }
 }
 
 // T01 acceptance (refined by assets/editor-spike.md S5.2): the real MarkdownEditor
-// must be idempotent (f(f(x)) == f(x)).
-// NOTE (jsdom limit): samples with fenced code blocks crash CodeMirror's node view
-// in jsdom (missing layout APIs; real browsers unaffected — verified in headless
-// Chrome, see it/W5-editor.md). Those run only in the headless suite below.
-function hasFence(input: string): boolean {
-  return input.includes('```');
-}
-
-describe('MarkdownEditor roundtrip (jsdom subset: no fenced code)', () => {
+// must be idempotent (f(f(x)) == f(x)) on all 20 samples, and untouched open-save
+// must restore original bytes through minimalDiff.
+// (CodeMirror views need the IntersectionObserver stub in test-setup.ts.)
+describe('MarkdownEditor roundtrip (20 samples)', () => {
   it.each(FILES)('%s is idempotent', async file => {
     const input = readFileSync(join(DIR, file), 'utf8');
-    if (hasFence(input)) {
-      console.log(`${file}: skipped in jsdom (fenced code; covered headless)`);
-      return;
-    }
     const first = await exportOf(input);
     const second = await exportOf(first.out);
     console.log(`${file}: zeroDiff=${first.out === input} stable=${first.out === second.out} onChange=${first.changed}`);
     expect(second.out, `${file}: second export must equal first (idempotent)`).toBe(first.out);
+    // end-to-end T01 acceptance: untouched open-save produces zero diff via minimalDiff
+    expect(minimalDiff(input, first.out), `${file}: minimalDiff must restore original bytes`).toBe(input);
   }, 60000);
 });

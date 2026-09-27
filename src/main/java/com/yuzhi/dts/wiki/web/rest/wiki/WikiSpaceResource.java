@@ -5,6 +5,7 @@ import com.yuzhi.dts.wiki.service.UserService;
 import com.yuzhi.dts.wiki.service.wiki.ContentReindexJob;
 import com.yuzhi.dts.wiki.service.wiki.PageService;
 import com.yuzhi.dts.wiki.service.wiki.TemplateService;
+import com.yuzhi.dts.wiki.service.wiki.UserDirectoryService;
 import com.yuzhi.dts.wiki.service.wiki.dto.PageDtos;
 import com.yuzhi.dts.wiki.service.wiki.dto.SpaceDtos;
 import java.util.List;
@@ -26,12 +27,29 @@ public class WikiSpaceResource {
     private final TemplateService templateService;
     private final UserService userService;
     private final ContentReindexJob contentReindexJob;
+    private final UserDirectoryService userDirectoryService;
 
-    public WikiSpaceResource(PageService pageService, TemplateService templateService, UserService userService, ContentReindexJob contentReindexJob) {
+    public WikiSpaceResource(
+        PageService pageService,
+        TemplateService templateService,
+        UserService userService,
+        ContentReindexJob contentReindexJob,
+        UserDirectoryService userDirectoryService
+    ) {
         this.pageService = pageService;
         this.templateService = templateService;
         this.userService = userService;
         this.contentReindexJob = contentReindexJob;
+        this.userDirectoryService = userDirectoryService;
+    }
+
+    /** @mention candidates: users visible to a reader of the space (design 10 S4.2 E9). */
+    @GetMapping("/users/mention")
+    public List<UserDirectoryService.MentionCandidate> mention(
+        @RequestParam(value = "q", required = false) String q,
+        @RequestParam(value = "spaceSlug", required = false) String spaceSlug
+    ) {
+        return userDirectoryService.mentionCandidates(q, spaceSlug);
     }
 
     /** Manual content backfill trigger (design 10 S3.2). */
