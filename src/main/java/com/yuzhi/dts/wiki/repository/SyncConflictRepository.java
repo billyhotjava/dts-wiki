@@ -42,4 +42,11 @@ public interface SyncConflictRepository extends JpaRepository<SyncConflict, Long
         "select syncConflict from SyncConflict syncConflict left join fetch syncConflict.page left join fetch syncConflict.resolvedBy where syncConflict.id =:id"
     )
     Optional<SyncConflict> findOneWithToOneRelationships(@Param("id") Long id);
+
+    // DTS-WIKI: customized (Sprint-6 W6): open conflicts per page.
+    List<SyncConflict> findByPageIdAndResolvedAtIsNull(Long pageId);
+
+    // DTS-WIKI: customized (Sprint-6 W6): admin conflict counts per space.
+    @Query("select count(c) from SyncConflict c join c.page p where p.space.id = :spaceId and c.resolvedAt is null")
+    long countOpenBySpace(@Param("spaceId") Long spaceId);
 }

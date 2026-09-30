@@ -39,4 +39,9 @@ public interface SyncRootRepository extends JpaRepository<SyncRoot, Long> {
         "select syncRoot from SyncRoot syncRoot left join fetch syncRoot.mountPage left join fetch syncRoot.space where syncRoot.id =:id"
     )
     Optional<SyncRoot> findOneWithToOneRelationships(@Param("id") Long id);
+
+    // DTS-WIKI: customized (Sprint-6 W6): never rely on the inverse in-memory collection
+    // (stale within a session after adds); always query roots fresh by space.
+    @Query("select syncRoot from SyncRoot syncRoot left join fetch syncRoot.mountPage where syncRoot.space.id = :spaceId")
+    List<SyncRoot> findBySpaceWithMount(@Param("spaceId") Long spaceId);
 }

@@ -17,6 +17,7 @@ import com.yuzhi.dts.wiki.repository.PageVersionRepository;
 import com.yuzhi.dts.wiki.repository.PageWatchRepository;
 import com.yuzhi.dts.wiki.repository.SpaceRepository;
 import com.yuzhi.dts.wiki.repository.SyncOutboxRepository;
+import com.yuzhi.dts.wiki.repository.SyncRootRepository;
 import com.yuzhi.dts.wiki.repository.UserRepository;
 import com.yuzhi.dts.wiki.security.SecurityUtils;
 import com.yuzhi.dts.wiki.service.wiki.content.ContentAnalysis;
@@ -60,6 +61,7 @@ public class PageService {
     private final ContentService contentService;
     private final PageMetaDao pageMetaDao;
     private final SearchIndexService searchIndexService;
+    private final SyncRootRepository syncRootRepository;
     private final ObjectMapper objectMapper;
 
     public PageService(
@@ -74,6 +76,7 @@ public class PageService {
         ContentService contentService,
         PageMetaDao pageMetaDao,
         SearchIndexService searchIndexService,
+        SyncRootRepository syncRootRepository,
         ObjectMapper objectMapper
     ) {
         this.pageRepository = pageRepository;
@@ -87,6 +90,7 @@ public class PageService {
         this.contentService = contentService;
         this.pageMetaDao = pageMetaDao;
         this.searchIndexService = searchIndexService;
+        this.syncRootRepository = syncRootRepository;
         this.objectMapper = objectMapper;
     }
 
@@ -110,8 +114,9 @@ public class PageService {
         Space space = findVisibleSpace(slug);
         List<Page> pages = pageRepository.findLiveBySpace(space.getId());
         Long rootId = pages.stream().filter(p -> p.getParent() == null).map(Page::getId).findFirst().orElse(null);
-        List<SpaceDtos.SyncRootInfo> roots = space
-            .getSyncRootses()
+        // W6: query roots fresh (inverse in-memory collections go stale within a session).
+        List<SpaceDtos.SyncRootInfo> roots = syncRootRepository
+            .findBySpaceWithMount(space.getId())
             .stream()
             .map(r -> new SpaceDtos.SyncRootInfo(r.getRepoPath(), r.getMountPage() == null ? null : r.getMountPage().getId(), Boolean.TRUE.equals(r.getEnabled())))
             .toList();
@@ -266,7 +271,11 @@ public class PageService {
         }
         addVersion(page, request.contentMd(), request.message(), VersionSource.WEB, ContentService.Mode.STRICT, viaAgent);
         if (page.getKind() == PageKind.GIT) {
-            markPendingPush(page, OutboxOp.WRITE, Map.of("gitPath", page.getGitPath()));
+            Map<String, String> payload = new LinkedHashMap<>(Map.of("gitPath", page.getGitPath()));
+            if (viaAgent != null) {
+                payload.put("viaAgent", viaAgent);
+            }
+            markPendingPush(page, OutboxOp.WRITE, payload);
         }
         return new PageDtos.SaveContentResult(currentNo + 1);
     }
@@ -286,19 +295,24 @@ public class PageService {
             if (isDescendantOrSelf(parent, page)) {
                 throw new IllegalArgumentException("Cannot move a page under its own descendant"); // I6
             }
+            String fromPath = page.getGitPath();
             page.setParent(parent);
             page.setPosition(request.position() != null ? request.position() : nextPosition(page.getSpace().getId(), parent.getId()));
             if (page.getKind() == PageKind.GIT || page.getKind() == PageKind.FOLDER) {
                 repathSubtree(page);
             }
+            page.setUpdatedAt(Instant.now());
+            page = pageRepository.save(page);
+            if (page.getKind() == PageKind.GIT) {
+                // W6 outbound needs the source path for `git mv` (+ stable outbox id at push time).
+                markPendingPush(page, OutboxOp.MOVE, Map.of("gitPath", String.valueOf(page.getGitPath()), "fromPath", String.valueOf(fromPath)));
+            }
+            return toView(page);
         } else if (request.position() != null) {
             page.setPosition(request.position());
         }
         page.setUpdatedAt(Instant.now());
         page = pageRepository.save(page);
-        if (page.getKind() == PageKind.GIT) {
-            markPendingPush(page, OutboxOp.MOVE, Map.of("gitPath", String.valueOf(page.getGitPath())));
-        }
         return toView(page);
     }
 
@@ -403,6 +417,87 @@ public class PageService {
     /** Outbox entry for non-content page events (W5 attachments). */
     public void markGitOutbox(Page page, OutboxOp op, String gitPath) {
         markPendingPush(page, op, Map.of("gitPath", String.valueOf(gitPath)));
+    }
+
+    /** Outbox entry with extra references (W6: attachment id for ATTACH replay). */
+    public void markGitOutbox(Page page, OutboxOp op, Map<String, String> extra) {
+        markPendingPush(page, op, extra);
+    }
+
+    /**
+     * Ingest a git-side version (W6 inbound/merge): LENIENT analysis, source GIT, author
+     * mapped from the commit identity, meta + search updated. Never writes outbox and never
+     * touches syncStatus — the caller owns the state machine.
+     */
+    public PageVersion ingestGitVersion(Page page, String contentMd, String gitCommit, String commitAuthorName, String commitAuthorEmail) {
+        String sha = sha256(contentMd);
+        PageVersion current = page.getCurrentVersion();
+        if (current != null && sha.equals(current.getContentSha256())) {
+            return current;
+        }
+        ContentAnalysis analysis = contentService.analyze(contentMd, ContentService.Mode.LENIENT, docId ->
+            pageMetaDao.docIdInSpace(page.getSpace().getId(), docId, page.getId() == null ? -1L : page.getId()));
+        PageVersion version = new PageVersion();
+        version.setPage(page);
+        version.setVersionNo(current == null ? 1 : current.getVersionNo() + 1);
+        version.setContentMd(contentMd);
+        version.setContentSha256(sha);
+        version.setAuthorName(commitAuthorName);
+        version.setAuthorEmail(commitAuthorEmail);
+        version.setSource(VersionSource.GIT);
+        version.setGitCommit(gitCommit);
+        version.setCreatedAt(Instant.now());
+        matchUser(commitAuthorName, commitAuthorEmail).ifPresent(version::setAuthor);
+        version = pageVersionRepository.save(version);
+        page.setCurrentVersion(version);
+        page.setUpdatedAt(Instant.now());
+        pageRepository.save(page);
+        pageRepository.flush();
+        pageMetaDao.upsert(page.getSpace().getId(), page.getId(), analysis);
+        searchIndexService.upsert(
+            page.getId(),
+            page.getSpace().getId(),
+            analysis.title() == null ? page.getTitle() : analysis.title(),
+            String.join(" ", analysis.tags()),
+            analysis.plainText()
+        );
+        return version;
+    }
+
+    private Optional<User> matchUser(String authorName, String authorEmail) {
+        if (authorEmail != null && !authorEmail.isBlank()) {
+            var users = userRepository.findAll();
+            for (User user : users) {
+                if (user.getEmail() != null && user.getEmail().equalsIgnoreCase(authorEmail)) {
+                    return Optional.of(user);
+                }
+            }
+        }
+        if (authorName != null && !authorName.isBlank()) {
+            return userRepository.findOneByLogin(authorName);
+        }
+        return Optional.empty();
+    }
+
+    /**
+     * Create a page for a newly appeared git file (W6 inbound/import).
+     */
+    public Page ingestGitPage(Space space, Page parent, String title, String gitPath, PageKind kind, String contentMd, String gitCommit, String commitAuthorName, String commitAuthorEmail) {
+        Page page = new Page();
+        page.setSpace(space);
+        page.setParent(parent);
+        page.setTitle(title);
+        page.setKind(kind);
+        page.setGitPath(gitPath);
+        page.setPosition(nextPosition(space.getId(), parent == null ? null : parent.getId()));
+        page.setSyncStatus(PageSyncStatus.SYNCED);
+        page.setCreatedAt(Instant.now());
+        page.setUpdatedAt(Instant.now());
+        page = pageRepository.save(page);
+        if (contentMd != null) {
+            ingestGitVersion(page, contentMd, gitCommit, commitAuthorName, commitAuthorEmail);
+        }
+        return page;
     }
 
     private Space findVisibleSpace(String slug) {
@@ -537,10 +632,12 @@ public class PageService {
     }
 
     private boolean isUnderSyncRoot(Page parent, Space space) {
+        // W6: query roots fresh (inverse in-memory collections go stale within a session).
+        List<com.yuzhi.dts.wiki.domain.SyncRoot> roots = syncRootRepository.findBySpaceWithMount(space.getId());
         Page cursor = parent;
         while (cursor != null) {
             final Page node = cursor;
-            boolean mounted = space.getSyncRootses().stream().anyMatch(r -> Boolean.TRUE.equals(r.getEnabled()) && r.getMountPage() != null && r.getMountPage().getId().equals(node.getId()));
+            boolean mounted = roots.stream().anyMatch(r -> Boolean.TRUE.equals(r.getEnabled()) && r.getMountPage() != null && r.getMountPage().getId().equals(node.getId()));
             if (mounted) {
                 return true;
             }
@@ -640,8 +737,7 @@ public class PageService {
         return pageRepository.maxSiblingPosition(spaceId, parentId) + POSITION_STEP;
     }
 
-    static String sha256(String content) {
-        try {
+    public static String sha256(String content) {        try {
             byte[] digest = MessageDigest.getInstance("SHA-256").digest(content.getBytes(StandardCharsets.UTF_8));
             return HexFormat.of().formatHex(digest);
         } catch (NoSuchAlgorithmException e) {

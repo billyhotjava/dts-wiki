@@ -1,6 +1,7 @@
 package com.yuzhi.dts.wiki.repository;
 
 import com.yuzhi.dts.wiki.domain.SyncOutbox;
+import com.yuzhi.dts.wiki.domain.enumeration.OutboxStatus;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.data.domain.Page;
@@ -14,6 +15,12 @@ import org.springframework.stereotype.Repository;
  */
 @Repository
 public interface SyncOutboxRepository extends JpaRepository<SyncOutbox, Long> {
+    // DTS-WIKI: customized (Sprint-6 W6): outbox drain in id order.
+    List<SyncOutbox> findBySpaceIdAndStatusOrderByIdAsc(Long spaceId, OutboxStatus status);
+
+    // DTS-WIKI: customized (Sprint-6 W6): admin counts.
+    long countBySpaceIdAndStatus(Long spaceId, OutboxStatus status);
+
     default Optional<SyncOutbox> findOneWithEagerRelationships(Long id) {
         return this.findOneWithToOneRelationships(id);
     }

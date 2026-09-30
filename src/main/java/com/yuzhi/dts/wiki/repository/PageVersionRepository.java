@@ -40,4 +40,7 @@ public interface PageVersionRepository extends JpaRepository<PageVersion, Long>,
 
     @Query("select pageVersion from PageVersion pageVersion left join fetch pageVersion.author where pageVersion.id =:id")
     Optional<PageVersion> findOneWithToOneRelationships(@Param("id") Long id);
+
+    // DTS-WIKI: customized (Sprint-6 W6): conflict baseline lookup.
+    List<PageVersion> findByPageIdOrderByVersionNoDesc(Long pageId);
 }

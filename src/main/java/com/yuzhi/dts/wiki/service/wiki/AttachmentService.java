@@ -18,6 +18,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -109,7 +110,7 @@ public class AttachmentService {
         attachment = attachmentRepository.save(attachment);
         // GIT sync (outbox consumed by F5); NATIVE stays LOCAL_ONLY.
         if (page.getKind() == PageKind.GIT) {
-            pageService.markGitOutbox(page, OutboxOp.ATTACH, attachment.getGitPath());
+            pageService.markGitOutbox(page, OutboxOp.ATTACH, Map.of("gitPath", attachment.getGitPath(), "attachmentId", String.valueOf(attachment.getId())));
         }
         String markdown = image
             ? "![" + safeAlt(originalFilename) + "](./assets/" + storedName + ")"
