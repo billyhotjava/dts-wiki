@@ -97,6 +97,7 @@ class WikiEditingIT {
 
     @Test void nativeCreationAndTitleMutationRejectOversizeBeforeDatabaseWrites() throws Exception {
         long parent=pageRepository.findById(page).orElseThrow().getParent().getId();
+        long longTitle=pages.createPage("edit-team",new PageDtos.CreatePageRequest(parent,"a".repeat(200),"NATIVE",null)).id();
         long before=pageRepository.count();
         String title="a".repeat(201);
         mvc.perform(post("/api/wiki/spaces/edit-team/pages").with(alice()).with(csrf()).contentType("application/json")
@@ -108,7 +109,8 @@ class WikiEditingIT {
         mvc.perform(patch("/api/wiki/pages/{id}",page).with(alice()).with(csrf()).contentType("application/json").content("{\"title\":\""+title+"\"}"))
             .andExpect(status().isBadRequest());
         assertThat(pageRepository.count()).isEqualTo(before);
-        long longTitle=pages.createPage("edit-team",new PageDtos.CreatePageRequest(parent,"a".repeat(200),"NATIVE",null)).id();
-        assertThat(pages.copyPage(longTitle,new PageDtos.CopyPageRequest(parent,null)).title()).hasSize(200).endsWith(" (copy)");
+        mvc.perform(post("/api/wiki/pages/{id}/copy",longTitle).with(alice()).with(csrf()).contentType("application/json")
+            .content("{\"targetParentId\":"+parent+"}"))
+            .andExpect(status().isCreated()).andExpect(jsonPath("$.title").value("a".repeat(193)+" (copy)"));
     }
 }
