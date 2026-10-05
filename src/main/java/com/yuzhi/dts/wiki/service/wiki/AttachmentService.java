@@ -43,6 +43,8 @@ public class AttachmentService {
         "application/pdf",
         "text/plain",
         "text/markdown",
+        "application/json",
+        "text/html",
         "application/msword",
         "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         "application/vnd.ms-excel",

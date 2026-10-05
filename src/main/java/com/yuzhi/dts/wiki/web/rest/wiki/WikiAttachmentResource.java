@@ -51,6 +51,8 @@ public class WikiAttachmentResource {
         MediaType type = MediaTypeFactory.getMediaType(attachment.getFileName()).orElse(MediaType.APPLICATION_OCTET_STREAM);
         boolean inline = attachment.getMimeType() != null && (attachment.getMimeType().startsWith("image/") || attachment.getMimeType().equals("application/pdf"));
         return ResponseEntity.ok()
+            .header("Content-Security-Policy", "sandbox; default-src 'none'; img-src data:; style-src 'unsafe-inline'")
+            .header("X-Content-Type-Options", "nosniff")
             .contentType(type)
             .contentLength(attachment.getSize())
             .header(HttpHeaders.CONTENT_DISPOSITION, ContentDisposition.builder(inline ? "inline" : "attachment").filename(attachment.getFileName()).build().toString())
@@ -71,6 +73,8 @@ public class WikiAttachmentResource {
         Attachment attachment = attachmentService.resolveRaw(id, relative);
         InputStream content = blobStore.load(attachment.getSha256());
         MediaType type = MediaTypeFactory.getMediaType(attachment.getFileName()).orElse(MediaType.APPLICATION_OCTET_STREAM);
-        return ResponseEntity.ok().contentType(type).contentLength(attachment.getSize()).body(new InputStreamResource(content));
+        return ResponseEntity.ok().contentType(type).contentLength(attachment.getSize())
+            .header("Content-Security-Policy", "sandbox; default-src 'none'; img-src data:; style-src 'unsafe-inline'")
+            .header("X-Content-Type-Options", "nosniff").body(new InputStreamResource(content));
     }
 }

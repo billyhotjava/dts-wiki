@@ -90,6 +90,13 @@ public class PageMetaDao {
         return rows.isEmpty() ? Optional.empty() : Optional.of(rows.get(0));
     }
 
+    public Map<Long, MetaRow> findByPages(List<Long> ids) {
+        if (ids.isEmpty()) return Map.of();
+        String placeholders = String.join(",", java.util.Collections.nCopies(ids.size(), "?"));
+        return jdbc.query("SELECT * FROM page_meta WHERE page_id IN (" + placeholders + ")", mapper(), ids.toArray())
+            .stream().collect(java.util.stream.Collectors.toMap(MetaRow::pageId, row -> row));
+    }
+
     public Optional<String> docIdInSpace(long spaceId, String docId, long excludePageId) {
         List<String> paths = jdbc.query(
             """

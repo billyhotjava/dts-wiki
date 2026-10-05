@@ -52,7 +52,7 @@ public class CustomClaimConverter implements Converter<Map<String, Object>, Map<
     public Map<String, Object> convert(Map<String, Object> claims) {
         Map<String, Object> convertedClaims = this.delegate.convert(claims);
         // Only look up user information if identity claims are missing
-        if (claims.containsKey("given_name") && claims.containsKey("family_name")) {
+        if (claims.containsKey("preferred_username") || claims.containsKey("given_name") && claims.containsKey("family_name")) {
             return convertedClaims;
         }
         RequestAttributes attributes = RequestContextHolder.getRequestAttributes();

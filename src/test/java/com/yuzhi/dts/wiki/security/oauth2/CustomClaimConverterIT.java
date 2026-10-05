@@ -87,6 +87,13 @@ class CustomClaimConverterIT {
     }
 
     @Test
+    void signedPersonalClaimsDoNotFetchOrOverrideCurrentRoles() {
+        Map<String, Object> claims = Map.of("sub", "123", "preferred_username", "alice", "roles", List.of("reader"));
+        assertThat(customClaimConverter.convert(claims)).containsEntry("roles", List.of("reader"));
+        org.mockito.Mockito.verifyNoInteractions(restTemplate);
+    }
+
+    @Test
     void testConvert_withoutGroups() {
         // GIVEN
         Map<String, Object> claims = new HashMap<>();

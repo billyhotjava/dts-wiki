@@ -223,6 +223,11 @@ public class PageService {
 
     @Transactional
     public PageDtos.PageView createPage(String slug, PageDtos.CreatePageRequest request) {
+        return createPage(slug, request, null, null);
+    }
+
+    @Transactional
+    public PageDtos.PageView createPage(String slug, PageDtos.CreatePageRequest request, String viaAgent, String message) {
         spaceAccessService.requireWrite(slug);
         Space space = findVisibleSpace(slug);
         Page parent = null;
@@ -252,7 +257,7 @@ public class PageService {
         page = pageRepository.save(page);
         String initialContent = request.contentMd() != null ? request.contentMd() : templateService.resolve(slug, request.templateId());
         if (initialContent != null) {
-            addVersion(page, initialContent, null, VersionSource.WEB);
+            addVersion(page, initialContent, message, VersionSource.WEB, ContentService.Mode.STRICT, viaAgent);
         } else {
             pageRepository.flush();
             searchIndexService.upsert(page.getId(), space.getId(), page.getTitle(), "", "");
