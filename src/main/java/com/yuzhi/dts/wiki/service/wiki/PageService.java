@@ -65,6 +65,7 @@ public class PageService {
     private final ObjectMapper objectMapper;
     private final PageWritePolicy writePolicy;
     private final com.yuzhi.dts.wiki.config.WikiProperties properties;
+    private final WikiActivityService activity;
 
     public PageService(
         PageRepository pageRepository,
@@ -81,7 +82,8 @@ public class PageService {
         SyncRootRepository syncRootRepository,
         ObjectMapper objectMapper,
         PageWritePolicy writePolicy,
-        com.yuzhi.dts.wiki.config.WikiProperties properties
+        com.yuzhi.dts.wiki.config.WikiProperties properties,
+        WikiActivityService activity
     ) {
         this.pageRepository = pageRepository;
         this.pageVersionRepository = pageVersionRepository;
@@ -98,6 +100,7 @@ public class PageService {
         this.objectMapper = objectMapper;
         this.writePolicy = writePolicy;
         this.properties = properties;
+        this.activity = activity;
     }
 
     // ------------------------------------------------------------------ read
@@ -126,7 +129,7 @@ public class PageService {
             .stream()
             .map(r -> new SpaceDtos.SyncRootInfo(r.getRepoPath(), r.getMountPage() == null ? null : r.getMountPage().getId(), Boolean.TRUE.equals(r.getEnabled())))
             .toList();
-        return new SpaceDtos.SpaceDetail(space.getSlug(), space.getName(), space.getDescription(), rootId, roots);
+        return new SpaceDtos.SpaceDetail(space.getSlug(), space.getName(), space.getDescription(), rootId, roots, spaceAccessService.canWrite(slug));
     }
 
     @Transactional(readOnly = true)
@@ -250,6 +253,10 @@ public class PageService {
         String initialContent = request.contentMd() != null ? request.contentMd() : templateService.resolve(slug, request.templateId());
         if (initialContent != null) {
             addVersion(page, initialContent, null, VersionSource.WEB);
+        } else {
+            pageRepository.flush();
+            searchIndexService.upsert(page.getId(), space.getId(), page.getTitle(), "", "");
+            activity.record(page, com.yuzhi.dts.wiki.domain.enumeration.ActivityType.PAGE_CREATED, null, null, null);
         }
         if (kind == PageKind.GIT) {
             markPendingPush(page, OutboxOp.WRITE, Map.of("gitPath", page.getGitPath()));
@@ -320,6 +327,8 @@ public class PageService {
             }
             page.setUpdatedAt(Instant.now());
             page = pageRepository.save(page);
+            refreshTitleIndex(page);
+            activity.record(page, com.yuzhi.dts.wiki.domain.enumeration.ActivityType.PAGE_MOVED, null, null, null);
             if (page.getKind() == PageKind.GIT) {
                 // W6 outbound needs the source path for `git mv` (+ stable outbox id at push time).
                 markPendingPush(page, OutboxOp.MOVE, Map.of("gitPath", String.valueOf(page.getGitPath()), "fromPath", String.valueOf(fromPath)));
@@ -330,6 +339,8 @@ public class PageService {
         }
         page.setUpdatedAt(Instant.now());
         page = pageRepository.save(page);
+        refreshTitleIndex(page);
+        activity.record(page, com.yuzhi.dts.wiki.domain.enumeration.ActivityType.PAGE_UPDATED, null, "Page title or position changed", null);
         return toView(page);
     }
 
@@ -383,6 +394,7 @@ public class PageService {
         writePolicy.requireWritableSubtree(page);
         Instant now = Instant.now();
         deleteSubtree(page, now);
+        activity.record(page, com.yuzhi.dts.wiki.domain.enumeration.ActivityType.PAGE_DELETED, null, null, now);
         if (page.getKind() == PageKind.GIT) {
             markPendingPush(page, OutboxOp.DELETE, Map.of("gitPath", String.valueOf(page.getGitPath())));
         }
@@ -405,10 +417,37 @@ public class PageService {
         spaceAccessService.requireWrite(page.getSpace() == null ? null : page.getSpace().getSlug());
         writePolicy.requireWritableSubtree(page);
         restoreSubtree(page);
+        activity.record(page, com.yuzhi.dts.wiki.domain.enumeration.ActivityType.PAGE_RESTORED, null, null, null);
         if (page.getKind() == PageKind.GIT) {
             markPendingPush(page, OutboxOp.RESTORE, Map.of("gitPath", String.valueOf(page.getGitPath())));
         }
         return toView(page);
+    }
+
+    @Transactional
+    public PageDtos.SaveContentResult restoreVersion(Long id, int versionNo, int baseVersionNo) {
+        Page page = pageRepository.findForUpdate(id).orElseThrow(() -> new SpaceNotVisibleException("page:" + id));
+        spaceAccessService.requireWrite(page);
+        if (page.getDeletedAt() != null) throw new SpaceNotVisibleException("page:" + id);
+        writePolicy.requireWritable(page);
+        if (page.getSyncStatus() == PageSyncStatus.CONFLICT) throw new PageSyncConflictException(id);
+        PageVersion current = page.getCurrentVersion();
+        int currentNo = current == null ? 0 : current.getVersionNo();
+        if (baseVersionNo != currentNo) throw new PageVersionConflictException(currentNo);
+        PageVersion old = pageVersionRepository.findByPageIdAndVersionNo(id, versionNo)
+            .orElseThrow(() -> new SpaceNotVisibleException("version:" + versionNo));
+        if (current != null && current.getContentSha256().equals(old.getContentSha256())) return new PageDtos.SaveContentResult(currentNo);
+        addVersion(page, old.getContentMd(), "restore v" + versionNo, VersionSource.RESTORE, ContentService.Mode.LENIENT, null);
+        if (page.getKind() == PageKind.GIT) markPendingPush(page, OutboxOp.WRITE, Map.of("gitPath", page.getGitPath()));
+        return new PageDtos.SaveContentResult(currentNo + 1);
+    }
+
+    private void refreshTitleIndex(Page page) {
+        PageVersion current = page.getCurrentVersion();
+        if (current == null) { searchIndexService.upsert(page.getId(), page.getSpace().getId(), page.getTitle(), "", ""); return; }
+        ContentAnalysis analysis = contentService.analyze(current.getContentMd(), ContentService.Mode.LENIENT);
+        searchIndexService.upsert(page.getId(), page.getSpace().getId(), page.getTitle(), String.join(" ", analysis.tags())
+            + " " + (analysis.docId() == null ? "" : analysis.docId()), analysis.plainText());
     }
 
     private void restoreSubtree(Page page) {
@@ -452,10 +491,12 @@ public class PageService {
      * mapped from the commit identity, meta + search updated. Never writes outbox and never
      * touches syncStatus — the caller owns the state machine.
      */
+    @Transactional
     public PageVersion ingestGitVersion(Page page, String contentMd, String gitCommit, String commitAuthorName, String commitAuthorEmail) {
         return ingestGitVersion(page, contentMd, gitCommit, commitAuthorName, commitAuthorEmail, Instant.now());
     }
 
+    @Transactional
     public PageVersion ingestGitVersion(Page page, String contentMd, String gitCommit, String commitAuthorName, String commitAuthorEmail, Instant committedAt) {
         String sha = sha256(contentMd);
         PageVersion current = page.getCurrentVersion();
@@ -488,6 +529,7 @@ public class PageService {
             String.join(" ", analysis.tags()),
             analysis.plainText()
         );
+        activity.record(page, com.yuzhi.dts.wiki.domain.enumeration.ActivityType.SYNC_IMPORTED, commitAuthorName, "Git version " + version.getVersionNo(), committedAt);
         return version;
     }
 
@@ -644,6 +686,9 @@ public class PageService {
             String.join(" ", analysis.tags()) + " " + (analysis.docId() == null ? "" : analysis.docId()),
             analysis.plainText()
         );
+        activity.record(page, source == VersionSource.RESTORE ? com.yuzhi.dts.wiki.domain.enumeration.ActivityType.PAGE_RESTORED
+            : next == 1 ? com.yuzhi.dts.wiki.domain.enumeration.ActivityType.PAGE_CREATED : com.yuzhi.dts.wiki.domain.enumeration.ActivityType.PAGE_UPDATED,
+            login, "Version " + next + (viaAgent == null ? "" : " via " + viaAgent), version.getCreatedAt());
     }
 
     private void markPendingPush(Page page, OutboxOp op, Map<String, String> extra) {

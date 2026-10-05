@@ -27,6 +27,7 @@ export interface SpaceSummary {
 export interface SpaceDetail extends SpaceSummary {
   rootPageId: number | null;
   syncRoots: { repoPath: string; mountPageId: number | null; enabled: boolean }[];
+  editable: boolean;
 }
 
 export interface PageMeta {
@@ -242,4 +243,37 @@ export function useContentQuery(params: Record<string, string>) {
       return { items: response.data, total: Number(response.headers.get('X-Total-Count') ?? '0') };
     },
   });
+}
+
+export interface SearchHit { pageId: number; spaceSlug: string; spaceName: string; title: string; snippet: string; type: string | null; status: string | null; gitPath: string | null; url: string; updatedAt: string; score: number }
+export function useSearch(params: Record<string, string>) {
+  return useQuery({ queryKey: ['search', params], enabled: Boolean(params.q?.trim()),
+    queryFn: async () => (await api.get<{ items: SearchHit[]; total: number; page: number; size: number }>('/api/wiki/search', { params })).data });
+}
+
+export interface PageVersion { versionNo: number; authorName: string; viaAgent: string | null; source: string; message: string | null; gitCommit: string | null; createdAt: string; contentSha256: string; contentMd: string | null }
+export function useVersions(id: number, page = 0) {
+  return useQuery({ queryKey: ['versions', id, page], enabled: id > 0,
+    queryFn: async () => (await api.get<{ items: PageVersion[]; total: number }>(`/api/wiki/pages/${id}/versions`, { params: { page: String(page), size: '20' } })).data });
+}
+export function useVersion(id: number, no: number | null) {
+  return useQuery({ queryKey: ['version', id, no], enabled: id > 0 && no !== null,
+    queryFn: async () => (await api.get<PageVersion>(`/api/wiki/pages/${id}/versions/${no}`)).data });
+}
+export function useRestoreVersion() {
+  const client = useQueryClient();
+  return useMutation({ mutationFn: async (args: { id: number; no: number; baseVersionNo: number }) =>
+      (await api.post<{ versionNo: number }>(`/api/wiki/pages/${args.id}/versions/${args.no}/restore`, { baseVersionNo: args.baseVersionNo })).data,
+    onSuccess: (_data, args) => {
+      void client.invalidateQueries({ queryKey: ['page', args.id] });
+      void client.invalidateQueries({ queryKey: ['versions', args.id] });
+      void client.invalidateQueries({ queryKey: ['search'] });
+      void client.invalidateQueries({ queryKey: ['content-query'] });
+      void client.invalidateQueries({ queryKey: ['activity'] });
+    } });
+}
+
+export interface ActivityItem { id: number; type: string; actor: string; title: string; pageId: number | null; spaceSlug: string; url: string | null; detail: string | null; createdAt: string }
+export function useActivity(params: Record<string, string> = {}) {
+  return useQuery({ queryKey: ['activity', params], queryFn: async () => (await api.get<ActivityItem[]>('/api/wiki/activity', { params })).data });
 }

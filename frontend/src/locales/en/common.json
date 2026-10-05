@@ -27,5 +27,65 @@
     "IN_PROGRESS": "In progress",
     "BLOCKED": "Blocked",
     "DONE": "Done"
+  },
+  "search": {
+    "placeholder": "Search knowledge",
+    "title": "Search results",
+    "space": "Space",
+    "type": "Document type",
+    "tag": "Tag",
+    "since": "From",
+    "until": "Until",
+    "total": "{{count}} results",
+    "loading": "Searching…",
+    "failed": "Search failed",
+    "empty": "No results"
+  },
+  "docType": {
+    "page": "Page",
+    "task": "Task",
+    "feature": "Feature",
+    "sprint": "Sprint",
+    "adr": "Architecture decision",
+    "evidence": "Verification record"
+  },
+  "history": {
+    "version": "Version",
+    "author": "Author",
+    "via": " (via {{agent}})",
+    "time": "Time",
+    "message": "Message",
+    "source": "Source",
+    "compare": "Compare versions",
+    "before": "Before",
+    "after": "After",
+    "sourceDiff": "Source comparison",
+    "renderedDiff": "Rendered comparison",
+    "restoreVersion": "Restore version {{no}}",
+    "confirm": "Restore this page?",
+    "summary": "{{additions}} lines added, {{removals}} removed. Restore creates a new version.",
+    "restored": "Restored as a new version",
+    "restoreFailed": "Restore failed. The page may have changed; refresh and retry."
+  },
+  "versionSource": {
+    "WEB": "Web edit",
+    "GIT": "Git sync",
+    "MERGE": "Merge",
+    "RESTORE": "Restore"
+  },
+  "activity": {
+    "title": "Recent activity",
+    "PAGE_CREATED": "Created page",
+    "PAGE_UPDATED": "Updated page",
+    "PAGE_MOVED": "Moved page",
+    "PAGE_DELETED": "Deleted page",
+    "PAGE_RESTORED": "Restored page",
+    "COMMENT_ADDED": "Added comment",
+    "SYNC_IMPORTED": "Imported content",
+    "CONFLICT_RESOLVED": "Resolved conflict"
+  },
+  "space": {
+    "browse": "Browse pages",
+    "create": "New page"
   }
 }

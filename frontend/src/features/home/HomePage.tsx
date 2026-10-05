@@ -3,6 +3,8 @@ import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../auth/AuthProvider';
 import { AsyncState } from '../../components/AsyncState';
+import { lazy, Suspense } from 'react';
+const ActivityPanel = lazy(() => import('../history/ActivityPanel').then(m => ({ default: m.ActivityPanel })));
 
 export function HomePage() {
   const { t } = useTranslation();
@@ -26,6 +28,7 @@ export function HomePage() {
           ))}
         </Row>
       </AsyncState>
+      <Suspense><ActivityPanel /></Suspense>
     </>
   );
 }

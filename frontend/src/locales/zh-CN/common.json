@@ -27,5 +27,65 @@
     "IN_PROGRESS": "进行中",
     "BLOCKED": "受阻",
     "DONE": "已完成"
+  },
+  "search": {
+    "placeholder": "搜索知识库",
+    "title": "搜索结果",
+    "space": "空间",
+    "type": "文档类型",
+    "tag": "标签",
+    "since": "开始日期",
+    "until": "结束日期",
+    "total": "共 {{count}} 条结果",
+    "loading": "搜索中…",
+    "failed": "搜索失败",
+    "empty": "未找到结果"
+  },
+  "docType": {
+    "page": "页面",
+    "task": "任务",
+    "feature": "功能",
+    "sprint": "迭代",
+    "adr": "架构决策",
+    "evidence": "验证记录"
+  },
+  "history": {
+    "version": "版本",
+    "author": "作者",
+    "via": "（经 {{agent}}）",
+    "time": "时间",
+    "message": "说明",
+    "source": "来源",
+    "compare": "对比版本",
+    "before": "旧版本",
+    "after": "新版本",
+    "sourceDiff": "源码对比",
+    "renderedDiff": "渲染对比",
+    "restoreVersion": "恢复为版本 {{no}}",
+    "confirm": "确认恢复页面？",
+    "summary": "新增 {{additions}} 行，删除 {{removals}} 行。恢复后会生成新版本。",
+    "restored": "已恢复并生成新版本",
+    "restoreFailed": "恢复失败，页面可能已更新，请刷新后重试。"
+  },
+  "versionSource": {
+    "WEB": "页面编辑",
+    "GIT": "Git 同步",
+    "MERGE": "合并",
+    "RESTORE": "版本恢复"
+  },
+  "activity": {
+    "title": "最近更新",
+    "PAGE_CREATED": "创建页面",
+    "PAGE_UPDATED": "更新页面",
+    "PAGE_MOVED": "移动页面",
+    "PAGE_DELETED": "删除页面",
+    "PAGE_RESTORED": "恢复页面",
+    "COMMENT_ADDED": "添加评论",
+    "SYNC_IMPORTED": "同步内容",
+    "CONFLICT_RESOLVED": "解决冲突"
+  },
+  "space": {
+    "browse": "浏览页面",
+    "create": "新建页面"
   }
 }

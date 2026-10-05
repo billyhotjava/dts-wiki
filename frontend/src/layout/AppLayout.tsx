@@ -8,6 +8,7 @@ const { Header, Sider, Content } = Layout;
 
 // design 10 S4.5: the tree (rc-tree + dropdown + modal) is NOT in the home bundle.
 const PageTree = lazy(() => import('../features/tree/PageTree').then(m => ({ default: m.PageTree })));
+const SearchBox = lazy(() => import('../features/search/SearchBox').then(m => ({ default: m.SearchBox })));
 
 // Confluence-style layout (design 05 S3): space switcher, page-tree sider, content.
 // Global search (W7), notifications (W8) and +New editor entry (W5) arrive later.
@@ -33,6 +34,7 @@ export function AppLayout() {
           onChange={value => navigate(`/s/${value}`)}
         />
         {slug && <Button onClick={() => navigate(`/s/${slug}/board`)}>{t('board.title')}</Button>}
+        <Suspense><SearchBox /></Suspense>
         <span style={{ marginLeft: 'auto' }}>{displayName}</span>
       </Header>
       <Layout>

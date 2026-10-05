@@ -43,4 +43,6 @@ public interface PageVersionRepository extends JpaRepository<PageVersion, Long>,
 
     // DTS-WIKI: customized (Sprint-6 W6): conflict baseline lookup.
     List<PageVersion> findByPageIdOrderByVersionNoDesc(Long pageId);
+    Page<PageVersion> findByPageIdOrderByVersionNoDesc(Long pageId, Pageable pageable);
+    Optional<PageVersion> findByPageIdAndVersionNo(Long pageId, Integer versionNo);
 }

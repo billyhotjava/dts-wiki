@@ -12,6 +12,7 @@ const PageView = lazy(() => import('./features/page/PageView').then(m => ({ defa
 const PageEditorPage = lazy(() => import('./features/edit/PageEditorPage').then(m => ({ default: m.PageEditorPage })));
 const TrashPage = lazy(() => import('./features/home/TrashPage').then(m => ({ default: m.TrashPage })));
 const SprintBoardPage = lazy(() => import('./features/query/SprintBoardPage').then(m => ({ default: m.SprintBoardPage })));
+const SearchPage = lazy(() => import('./features/search/SearchPage').then(m => ({ default: m.SearchPage })));
 
 function Suspended({ children }: { children: React.ReactNode }) {
   return <Suspense fallback={<Spin fullscreen description="Loading" />}>{children}</Suspense>;
@@ -33,6 +34,7 @@ export const router = createBrowserRouter([
     ),
     children: [
       { path: '/', element: <HomePage /> },
+      { path: '/search', element: <Suspended><SearchPage /></Suspended> },
       { path: '/s/:slug', element: <SpaceHomePage /> },
       {
         path: '/s/:slug/p/:pageId',

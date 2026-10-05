@@ -16,7 +16,8 @@ public final class SpaceDtos {
         String name,
         String description,
         Long rootPageId,
-        List<SyncRootInfo> syncRoots
+        List<SyncRootInfo> syncRoots,
+        boolean editable
     ) {}
 
     public record TreeNode(Long id, String title, String kind, boolean hasChildren, String syncStatus, boolean readOnly, List<TreeNode> children) {}

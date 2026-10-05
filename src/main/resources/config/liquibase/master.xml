@@ -49,4 +49,5 @@
     <include file="config/liquibase/changelog/9004_page_meta.xml" relativeToChangelogFile="false"/>
     <include file="config/liquibase/changelog/9005_page_version_via_agent.xml" relativeToChangelogFile="false"/>
     <include file="config/liquibase/changelog/9006_manifest_spaces.xml" relativeToChangelogFile="false"/>
+    <include file="config/liquibase/changelog/9007_history_activity.xml" relativeToChangelogFile="false"/>
 </databaseChangeLog>

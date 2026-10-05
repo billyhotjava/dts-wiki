@@ -7,6 +7,7 @@ import { MarkdownView } from '../../components/MarkdownView';
 import { useTranslation } from 'react-i18next';
 import { AttachmentsTab } from '../edit/AttachmentsTab';
 import { PropertiesPanel } from './PropertiesPanel';
+import { HistoryTab } from '../history/HistoryTab';
 
 // Page reading view (design 05 S3/S4 + 10 S4.6): breadcrumb, meta, tabs, ⋯ menu.
 // Internal enums are not shown as text: kind as icon, syncStatus only when abnormal.
@@ -88,7 +89,7 @@ export function PageView() {
                   ),
               },
               { key: 'attachments', label: '附件', children: <AttachmentsTab pageId={data.id} readOnly={data.gitReadOnly || !data.editable} /> },
-              { key: 'history', label: '历史', children: <Typography.Text type="secondary">历史随 W6 到来</Typography.Text> },
+              { key: 'history', label: '历史', children: <HistoryTab page={data} /> },
             ]}
           />
         </Card>

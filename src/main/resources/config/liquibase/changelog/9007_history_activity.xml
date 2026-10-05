@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<databaseChangeLog xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+                   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                   xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+    <changeSet id="9007-activity-backfill" author="com.yuzhi">
+        <sql><![CDATA[
+            INSERT INTO activity_event (id, type, actor_name, target_title, detail, created_at, space_id, page_id)
+            SELECT nextval('sequence_generator'),
+                   CASE WHEN v.source = 'GIT' THEN 'SYNC_IMPORTED'
+                        WHEN v.source = 'RESTORE' THEN 'PAGE_RESTORED'
+                        WHEN v.version_no = 1 THEN 'PAGE_CREATED' ELSE 'PAGE_UPDATED' END,
+                   v.author_name, p.title,
+                   'Version ' || v.version_no || CASE WHEN v.via_agent IS NULL THEN '' ELSE ' via ' || v.via_agent END,
+                   v.created_at, p.space_id, p.id
+            FROM page_version v JOIN page p ON p.id = v.page_id
+            WHERE NOT EXISTS (SELECT 1 FROM activity_event e WHERE e.page_id = p.id AND e.created_at = v.created_at);
+        ]]></sql>
+    </changeSet>
+    <changeSet id="9007-activity-index" author="com.yuzhi">
+        <sql>CREATE INDEX ix_wiki_activity_space_time ON activity_event (space_id, created_at DESC, id DESC)</sql>
+    </changeSet>
+</databaseChangeLog>
