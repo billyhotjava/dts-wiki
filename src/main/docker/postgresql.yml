@@ -4,7 +4,6 @@ services:
   postgresql:
     image: postgres:18.4
     # volumes:
-    #   - ~/volumes/jhipster/dtsWiki/postgresql/:/var/lib/postgresql/data/
     environment:
       - POSTGRES_USER=dtsWiki
       - POSTGRES_HOST_AUTH_METHOD=trust

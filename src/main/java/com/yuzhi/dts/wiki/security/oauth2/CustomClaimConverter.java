@@ -37,7 +37,6 @@ public class CustomClaimConverter implements Converter<Map<String, Object>, Map<
 
     private final ClientRegistration registration;
 
-    // See https://github.com/jhipster/generator-jhipster/issues/18868
     // We don't use a distributed cache or the user selected cache implementation here on purpose
     private final Cache<String, ObjectNode> users = Caffeine.newBuilder()
         .maximumSize(10_000)

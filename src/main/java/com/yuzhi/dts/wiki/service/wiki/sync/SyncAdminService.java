@@ -99,8 +99,8 @@ public class SyncAdminService {
                         state.map(s -> s.getStatus() == null ? null : s.getStatus().name()).orElse(null)
                     )
                 );
-                if (state.isPresent() && state.get().getMessage() != null && message == null) {
-                    message = state.get().getMessage();
+                if (state.isPresent() && state.orElseThrow().getMessage() != null && message == null) {
+                    message = state.orElseThrow().getMessage();
                 }
             }
             out.add(

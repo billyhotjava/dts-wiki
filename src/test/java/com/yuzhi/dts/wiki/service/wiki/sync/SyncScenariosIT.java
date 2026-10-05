@@ -282,7 +282,7 @@ class SyncScenariosIT {
         var states = space.getSyncRootses().stream().map(r -> stateRepository.findOneBySyncRootId(r.getId())).toList();
         assertThat(states).isNotEmpty();
         assertThat(states.get(0)).isPresent();
-        assertThat(states.get(0).get().getStatus().name()).isEqualTo("OFFLINE");
+        assertThat(states.get(0).orElseThrow().getStatus().name()).isEqualTo("OFFLINE");
     }
 
     @Test

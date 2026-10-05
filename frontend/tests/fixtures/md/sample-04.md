@@ -7,7 +7,7 @@
 | 组件库 | **antd 6**（`@ant-design/icons` 6），`ConfigProvider` 统一主题与 `zh_CN` 语言包 |
 | 路由 | React Router 8（数据路由 `createBrowserRouter`） |
 | 服务端状态 | TanStack Query 5（缓存、重试、乐观更新）；**不引入 Redux**，少量全局 UI 状态用 React Context |
-| HTTP | axios 实例：`withCredentials`、`X-XSRF-TOKEN`（JHipster 默认启用 CSRF，读 `XSRF-TOKEN` Cookie）、401 时整页跳转登录 |
+| HTTP | axios 实例：`withCredentials`、`X-XSRF-TOKEN`（DTS Wiki 默认启用 CSRF，读 `XSRF-TOKEN` Cookie）、401 时整页跳转登录 |
 | 接口类型 | 由后端 OpenAPI 生成：`openapi-typescript` 读取 `/v3/api-docs`（后端 `api-docs` profile），产物 `src/api/schema.d.ts`，不手写重复类型 |
 | 国际化 | react-i18next，默认 `zh-CN`，另有 `en`；文案文件 `src/locales/{zh-CN,en}/*.json` |
 | 构建 | Vite + pnpm；单元测试 Vitest + Testing Library；E2E Playwright |

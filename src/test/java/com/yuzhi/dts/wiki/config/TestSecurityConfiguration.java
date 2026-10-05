@@ -35,7 +35,7 @@ public class TestSecurityConfiguration {
 
     private ClientRegistration.Builder clientRegistrationBuilder() {
         Map<String, Object> metadata = new HashMap<>();
-        metadata.put("end_session_endpoint", "https://jhipster.org/logout");
+        metadata.put("end_session_endpoint", "https://identity.example/logout");
 
         return ClientRegistration.withRegistrationId("oidc")
             .issuerUri("{baseUrl}")
@@ -43,10 +43,10 @@ public class TestSecurityConfiguration {
             .clientAuthenticationMethod(ClientAuthenticationMethod.CLIENT_SECRET_BASIC)
             .authorizationGrantType(AuthorizationGrantType.AUTHORIZATION_CODE)
             .scope("read:user")
-            .authorizationUri("https://jhipster.org/login/oauth/authorize")
-            .tokenUri("https://jhipster.org/login/oauth/access_token")
-            .jwkSetUri("https://jhipster.org/oauth/jwk")
-            .userInfoUri("https://api.jhipster.org/user")
+            .authorizationUri("https://identity.example/login/oauth/authorize")
+            .tokenUri("https://identity.example/login/oauth/access_token")
+            .jwkSetUri("https://identity.example/oauth/jwk")
+            .userInfoUri("https://identity.example/user")
             .providerConfigurationMetadata(metadata)
             .userNameAttributeName("id")
             .clientName("Client Name")

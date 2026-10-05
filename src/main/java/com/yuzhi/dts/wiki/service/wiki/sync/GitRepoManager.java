@@ -9,6 +9,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ExecutionException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -59,62 +61,62 @@ public class GitRepoManager {
         return run(spaceSlug, args, Map.of(), timeoutSeconds);
     }
 
+
     public String run(String spaceSlug, List<String> args, Map<String, String> extraEnv, long timeoutSeconds) {
-        List<String> command = new ArrayList<>();
-        command.add("git");
-        command.addAll(args);
-        try {
-            ProcessBuilder builder = new ProcessBuilder(command);
-            builder.directory(repoDir(spaceSlug).toFile());
-            builder.environment().putAll(sshEnv(spaceSlug));
-            builder.environment().putAll(extraEnv);
-            builder.redirectErrorStream(false);
-            Process process = builder.start();
-            String stdout = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
-            String stderr = new String(process.getErrorStream().readAllBytes(), StandardCharsets.UTF_8);
-            boolean finished = process.waitFor(timeoutSeconds, TimeUnit.SECONDS);
-            if (!finished) {
-                process.destroyForcibly();
-                throw new GitCommandException(String.join(" ", args), 124, "timeout after " + timeoutSeconds + "s");
-            }
-            if (process.exitValue() != 0) {
-                throw new GitCommandException(String.join(" ", args), process.exitValue(), tail(stderr));
-            }
-            return stdout.strip();
-        } catch (IOException | InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new GitCommandException(String.join(" ", args), -1, e.getMessage());
-        }
+        Map<String, String> environment = new java.util.HashMap<>(sshEnv(spaceSlug));
+        environment.putAll(extraEnv);
+        return new String(execute(repoDir(spaceSlug), args, environment, timeoutSeconds), StandardCharsets.UTF_8).strip();
     }
 
     public String runIn(Path directory, List<String> args, Map<String, String> extraEnv, long timeoutSeconds) {
+        return new String(execute(directory, args, extraEnv, timeoutSeconds), StandardCharsets.UTF_8).strip();
+    }
+
+    private byte[] execute(Path directory, List<String> args, Map<String, String> environment, long timeoutSeconds) {
         List<String> command = new ArrayList<>();
         command.add("git");
+        command.add("-c");
+        command.add("core.quotePath=false");
         command.addAll(args);
-        try {
-            ProcessBuilder builder = new ProcessBuilder(command);
-            builder.directory(directory.toFile());
-            builder.environment().putAll(extraEnv);
-            Process process = builder.start();
-            String stdout = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
-            String stderr = new String(process.getErrorStream().readAllBytes(), StandardCharsets.UTF_8);
-            boolean finished = process.waitFor(timeoutSeconds, TimeUnit.SECONDS);
-            if (!finished) {
+        Process process = null;
+        try (var readers = Executors.newVirtualThreadPerTaskExecutor()) {
+            ProcessBuilder builder = new ProcessBuilder(command).directory(directory.toFile());
+            builder.environment().putAll(environment);
+            builder.environment().put("GIT_TERMINAL_PROMPT", "0");
+            process = builder.start();
+            Process running = process;
+            var stdout = readers.submit(() -> running.getInputStream().readAllBytes());
+            var stderr = readers.submit(() -> running.getErrorStream().readAllBytes());
+            if (!process.waitFor(timeoutSeconds, TimeUnit.SECONDS)) {
+                process.descendants().forEach(ProcessHandle::destroyForcibly);
                 process.destroyForcibly();
                 throw new GitCommandException(String.join(" ", args), 124, "timeout after " + timeoutSeconds + "s");
             }
+            byte[] output = stdout.get();
+            String error = new String(stderr.get(), StandardCharsets.UTF_8);
             if (process.exitValue() != 0) {
-                throw new GitCommandException(String.join(" ", args), process.exitValue(), tail(stderr));
+                throw new GitCommandException(String.join(" ", args), process.exitValue(), tail(error));
             }
-            return stdout.strip();
-        } catch (IOException | InterruptedException e) {
+            return output;
+        } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
+            throw new GitCommandException(String.join(" ", args), -1, "interrupted");
+        } catch (IOException | ExecutionException e) {
             throw new GitCommandException(String.join(" ", args), -1, e.getMessage());
+        } finally {
+            if (process != null && process.isAlive()) {
+                process.descendants().forEach(ProcessHandle::destroyForcibly);
+                process.destroyForcibly();
+            }
         }
     }
 
+    public byte[] fileBytesAt(String spaceSlug, String revision, String path) {
+        return execute(repoDir(spaceSlug), List.of("show", revision + ":" + path), sshEnv(spaceSlug), 30);
+    }
+
     public String fileAt(String spaceSlug, String revision, String path) {
-        return run(spaceSlug, List.of("show", revision + ":" + path), 30);
+        return new String(fileBytesAt(spaceSlug, revision, path), StandardCharsets.UTF_8);
     }
 
     public String head(String spaceSlug) {

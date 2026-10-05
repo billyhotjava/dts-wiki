@@ -73,7 +73,6 @@ public class Space implements Serializable {
     )
     private Set<Page> pageses = new HashSet<>();
 
-    // jhipster-needle-entity-add-field - JHipster will add fields here
 
     public Long getId() {
         return this.id;
@@ -241,7 +240,6 @@ public class Space implements Serializable {
         return this;
     }
 
-    // jhipster-needle-entity-add-getters-setters - JHipster will add getters and setters here
 
     @Override
     public boolean equals(Object o) {

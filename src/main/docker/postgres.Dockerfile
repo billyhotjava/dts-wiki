@@ -4,7 +4,9 @@
 # ships it. Verified 2026-09-26: builds against postgres:18 (PG 18.6, trixie).
 
 ARG PG_MAJOR=18
-FROM postgres:${PG_MAJOR} AS builder
+ARG PG_IMAGE=postgres:18.4
+FROM ${PG_IMAGE} AS builder
+ARG PG_MAJOR=18
 RUN apt-get update && apt-get install -y --no-install-recommends \
       gcc make postgresql-server-dev-${PG_MAJOR} libicu-dev git ca-certificates \
  && rm -rf /var/lib/apt/lists/*
@@ -19,7 +21,8 @@ RUN git clone https://github.com/pgbigm/pg_bigm.git /tmp/pg_bigm \
  && ls "/usr/lib/postgresql/${PG_MAJOR}/lib/pg_bigm.so" \
  && rm -rf /tmp/pg_bigm
 
-FROM postgres:${PG_MAJOR}
+FROM ${PG_IMAGE}
+ARG PG_MAJOR=18
 COPY --from=builder /usr/lib/postgresql/${PG_MAJOR}/lib/pg_bigm.so \
                     /usr/lib/postgresql/${PG_MAJOR}/lib/
 COPY --from=builder /usr/share/postgresql/${PG_MAJOR}/extension/pg_bigm* \

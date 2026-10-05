@@ -95,7 +95,7 @@ public class UserService {
     }
 
     private User syncUserWithIdP(Map<String, Object> details, User user) {
-        // save authorities in to sync user roles/groups between IdP and JHipster's local database
+        // save authorities in to sync user roles/groups between IdP and the local identity projection
         Collection<String> dbAuthorities = getAuthorities();
         Collection<String> userAuthorities = user.getAuthorities().stream().map(Authority::getName).toList();
         for (String authority : userAuthorities) {
@@ -106,7 +106,7 @@ public class UserService {
                 authorityRepository.save(authorityToSave);
             }
         }
-        // save account in to sync users between IdP and JHipster's local database
+        // save account in to sync users between IdP and the local identity projection
         Optional<User> existingUser = userRepository.findOneByLogin(user.getLogin());
         if (existingUser.isPresent()) {
             // if IdP sends last updated information, use it to determine if an update should happen

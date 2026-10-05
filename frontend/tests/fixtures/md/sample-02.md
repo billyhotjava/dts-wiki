@@ -22,11 +22,11 @@
 | # | 决策点 | 选择 | 状态 | 理由 | 影响 |
 |---|--------|------|------|------|------|
 | W-ADR-1 | 事实源 | **PostgreSQL** 存全部页面、版本、附件元数据、评论；git 仅为研发文档的同步端 | 已定（用户 2026-09-26） | Confluence 式功能（评论、页面管理、历史界面、非研发页面）需要数据库 | 需要同步器与冲突模型（F5） |
-| W-ADR-2 | 技术栈 | **JHipster 9 单体**（用户 2026-09-26 指定）：生成器 9.2.x（按 R-012 取首发满 30 天的最新次版本线）、Spring Boot 由 JHipster 管理（9.2 = 3.5.15，不单独升级 Boot 4）、**Java 25**；后端 JHipster 生成（`skipClient`），前端为 `frontend/` 独立的 **React 19 + antd 6**（用户 2026-09-26 指定），打进同一个 jar | 已定 | 与 dts-stack（JHipster 后端 + React/antd 前端）同架构；实体/Liquibase/OAuth2/测试脚手架现成 | 设计见 `features/F0-基线与技术选型spike/design/`；实体以 `dts-wiki/jhipster/dts-wiki.jdl` 为准 |
+| W-ADR-2 | 技术栈 | **DTS Wiki 9 单体**（用户 2026-09-26 指定）：生成器 9.2.x（按 R-012 取首发满 30 天的最新次版本线）、Spring Boot 由 DTS Wiki 管理（9.2 = 3.5.15，不单独升级 Boot 4）、**Java 25**；后端 DTS Wiki 生成（`skipClient`），前端为 `frontend/` 独立的 **React 19 + antd 6**（用户 2026-09-26 指定），打进同一个 jar | 已定 | 与 dts-stack（DTS Wiki 后端 + React/antd 前端）同架构；实体/Liquibase/OAuth2/测试脚手架现成 | 设计见 `features/F0-基线与技术选型spike/design/`；实体以 `dts-wiki/wiki-company/dts-wiki.jdl` 为准 |
 | W-ADR-3 | 内容规范格式 | **Markdown 原文**（PG 存 Markdown，与 git 字节级一致） | 已定 | 双向同步无损，避免富文本↔Markdown 转换产生伪冲突 | 编辑器须 Markdown 原生（F0/T02 选型） |
 | W-ADR-4 | 代码位置 | 新仓库 **`billyhotjava/dts-wiki`**，作为 dts-rdc submodule | 已定 | 边界清晰，日后整体并入 dts-studio 知识中心 | 需在 GitHub 建仓（用户操作） |
 | W-ADR-5 | 权限粒度 | **仅产品（空间）级**：沿用 Keycloak realm `yuzhicloud`、client `dts-wiki` 的角色 `space-<slug>`（读）、`editor`（写）、`admin`；**不做页面级权限** | 已定（降级） | 与现网 wiki 权限模型一致，迁移零成本 | F2 |
-| W-ADR-6 | 身份接入 | JHipster `authenticationType: oauth2`（服务端会话 + OIDC 授权码），不再依赖 oauth2-proxy | 已定 | 应用需要细粒度判断角色、生成审计作者；少一跳代理 | 现网 oauth2-proxy 随切换下线 |
+| W-ADR-6 | 身份接入 | DTS Wiki `authenticationType: oauth2`（服务端会话 + OIDC 授权码），不再依赖 oauth2-proxy | 已定 | 应用需要细粒度判断角色、生成审计作者；少一跳代理 | 现网 oauth2-proxy 随切换下线 |
 | W-ADR-7 | 同步语义 | 页面分两类：**git 绑定页**（空间配置的仓库路径下的 `.md`，双向同步）与 **wiki 原生页**（仅 PG）；同步单位 = 文件；冲突 = 自上次同步以来两边都改 → 标记冲突、保留两版、人工三方合并；**不自动覆盖** | 提议（F5/T01） | 沿用现网"本地提交 + 定时 rebase/push"的成功经验，把冲突显式化 | F5 |
 | W-ADR-8 | 中文全文检索 | PG 内实现：候选 **pg_bigm**（二元组，零词典）或 **zhparser**（分词）；由 spike 决定 | 待定（F0/T03） | 不引入额外搜索集群 | 可能需要自定义 PG 镜像 |
 | W-ADR-9 | 附件存储 | v1 放宿主机卷（`/data/dts-wiki/attachments`，按 sha256 去重）；接口按 S3 抽象，后续切 SeaweedFS | 提议（F4/T03） | 先简后繁；R-012 已定对象存储走 S3 API | — |

@@ -57,8 +57,8 @@ class SecurityPathIT {
     @Test
     @WithMockUser(authorities = { "ROLE_ADMIN" })
     void adminC_passesSecurityOnEntityApis() throws Exception {
-        mockMvc.perform(get("/api/spaces")).andExpect(status().isOk());
-        mockMvc.perform(get("/api/pages")).andExpect(status().isOk());
+        mockMvc.perform(get("/api/spaces")).andExpect(status().isNotFound());
+        mockMvc.perform(get("/api/pages")).andExpect(status().isNotFound());
         // no such mapping: security passes, dispatcher returns 404
         mockMvc.perform(get("/api/admin/sync")).andExpect(status().isNotFound());
     }

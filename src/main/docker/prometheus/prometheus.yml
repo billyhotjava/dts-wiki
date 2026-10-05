@@ -1,4 +1,3 @@
-# Sample global config for monitoring JHipster applications
 global:
   scrape_interval: 15s # By default, scrape targets every 15 seconds.
   evaluation_interval: 15s # By default, scrape targets every 15 seconds.
@@ -7,7 +6,7 @@ global:
   # Attach these labels to any time series or alerts when communicating with
   # external systems (federation, remote storage, Alertmanager).
   external_labels:
-    monitor: 'jhipster'
+    monitor: 'dts-wiki'
 
 # A scrape configuration containing exactly one endpoint to scrape:
 # Here it's Prometheus itself.
@@ -20,7 +19,6 @@ scrape_configs:
 
     # scheme defaults to 'http' enable https in case your application is server via https
     #scheme: https
-    # basic auth is not needed by default. See https://www.jhipster.tech/monitoring/#configuring-metrics-forwarding for details
     #basic_auth:
     # username: admin
     # password: admin

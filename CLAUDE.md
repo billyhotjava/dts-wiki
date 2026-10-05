@@ -1,7 +1,8 @@
 # DTS Wiki — project instructions
 
-Product-neutral, Confluence-style wiki shipped as a DTS module. JHipster 9 monolith
-backend (skipClient) + React/antd frontend in `frontend/` bundled into the same jar.
+Product-neutral, Confluence-style wiki shipped as a DTS module. Company-owned
+Spring Boot backend under `com.yuzhi.dts.wiki` + React/antd frontend in `frontend/`
+bundled into the same jar.
 PostgreSQL is the source of truth; git is a sync endpoint (inbound only in this phase).
 This repository holds **program code only — no content and no hard-coded space names**.
 Spaces come from the content source's manifest (wiki-content v1).
@@ -19,7 +20,7 @@ the work guide; it defines scope, work packages, rules and where to record statu
    `../dts-worklog/spaces/rdc/archive/dts-rdc-worklog/v1.0.0/sprint-5-202610/features/F2-Wiki平台骨架身份与性能/design/`,
    `.../F4-Wiki-Git双向同步/design/01-S4a研发文档统一与入站同步实施计划.md`
 4. Content contract: `../dts-common/src/main/resources/protocol/wiki-content/` (Common 1.1.0)
-5. `jhipster/dts-wiki.jdl` — the only place to change entities (regenerate after editing)
+5. Active F2/T13 and its company-owned Wiki design supersede archived generator rules.
 
 ## Hard rules
 - No content in this repository (`content/`, `worklog/` are rejected by dts-rdc
@@ -30,8 +31,8 @@ the work guide; it defines scope, work packages, rules and where to record statu
   product/operations documents.
 - Content source: one repository + manifest (`application.wiki.content.*`); roots are
   relative to the repository root; files outside declared roots are never imported.
-- Entities change only via the JDL + generator; hand edits to generated code are marked `// DTS-WIKI: customized`.
-- Business endpoints only under `/api/wiki/**` and always through `SpaceAccessService`; generated entity endpoints are ROLE_ADMIN only.
+- Entities are handwritten company code. Use additive Liquibase migrations and preserve every applied changeset body and checksum.
+- Business endpoints only under `/api/wiki/**` and always through `SpaceAccessService`; retired entity CRUD endpoints must remain unavailable.
 - Git commands only in `service.wiki.sync`; never `push --force`; writes only inside configured sync roots.
 - Page versions are immutable; identical content (sha256) never creates a version.
 - Server 10.20.0.50: no `docker pull` (ship images with `docker save | ssh docker load`), never restart dockerd, never touch the running wiki (`/data/dts-wiki`, port 18090), Jira or Keycloak containers. This project uses `/data/dts-wiki-v2` and port 18091.

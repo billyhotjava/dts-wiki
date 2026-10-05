@@ -1,5 +1,5 @@
 // Minimal fetch client replacing axios (design 10 S4.5 bundle budget: saves ~11 KB gz).
-// Same contract the hooks rely on: same-origin cookies, JHipster CSRF header,
+// Same contract the hooks rely on: same-origin cookies, Spring Security CSRF header,
 // 401 -> full-page login redirect, errors shaped as { response: { status, data } }.
 export interface ApiError {
   response: { status: number; data: unknown };

@@ -20,7 +20,6 @@
     <properties>
         <!--
             Build properties
-            The spring-boot version should match the one managed by https://mvnrepository.com/artifact/tech.jhipster/jhipster-dependencies/${jhipster-dependencies.version}
         -->
         <maven.version>3.2.5</maven.version>
         <!-- DTS-WIKI: customized (Sprint-6 W-ADR-2 / 08-W1): Java 25 per design 00 D2 -->
@@ -39,7 +38,6 @@
         <checkstyle.version>13.7.0</checkstyle.version>
         <config.version>1.4.9</config.version>
         <jacoco-maven-plugin.version>0.8.15</jacoco-maven-plugin.version>
-        <jhipster-framework.version>9.1.0</jhipster-framework.version>
         <jib-maven-plugin.architecture>amd64</jib-maven-plugin.architecture>
         <jib-maven-plugin.image>eclipse-temurin:25-jre-noble</jib-maven-plugin.image>
         <jib-maven-plugin.version>3.5.1</jib-maven-plugin.version>
@@ -65,11 +63,6 @@
     </properties>
 
     <dependencies>
-        <dependency>
-            <groupId>tech.jhipster</groupId>
-            <artifactId>jhipster-framework</artifactId>
-            <version>${jhipster-framework.version}</version>
-        </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-configuration-processor</artifactId>
@@ -530,11 +523,11 @@
                     <configuration>
                         <rules>
                             <requireMavenVersion>
-                                <message>You are running an older version of Maven. JHipster requires at least Maven ${maven.version}</message>
+                                <message>You are running an older version of Maven. DTS Wiki requires at least Maven ${maven.version}</message>
                                 <version>[${maven.version},)</version>
                             </requireMavenVersion>
                             <requireJavaVersion>
-                                <message>You are running an incompatible version of Java. JHipster supports JDK 21 to 25.</message>
+                                <message>You are running an incompatible version of Java. DTS Wiki supports JDK 21 to 25.</message>
                                 <version>[21,22),[25,26)</version>
                             </requireJavaVersion>
                         </rules>
@@ -685,7 +678,7 @@
                             </ports>
                             <environment>
                                 <SPRING_OUTPUT_ANSI_ENABLED>ALWAYS</SPRING_OUTPUT_ANSI_ENABLED>
-                                <JHIPSTER_SLEEP>0</JHIPSTER_SLEEP>
+                                <WIKI_STARTUP_DELAY>0</WIKI_STARTUP_DELAY>
                             </environment>
                             <creationTime>USE_CURRENT_TIMESTAMP</creationTime>
                             <user>1000</user>

@@ -36,13 +36,13 @@ import org.springframework.security.oauth2.server.resource.authentication.JwtAut
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.csrf.*;
 import org.springframework.util.StringUtils;
-import tech.jhipster.config.JHipsterProperties;
+import com.yuzhi.dts.wiki.config.ApplicationProperties;
 
 @Configuration
 @EnableMethodSecurity(securedEnabled = true)
 public class SecurityConfiguration {
 
-    private final JHipsterProperties jHipsterProperties;
+    private final ApplicationProperties applicationProperties;
 
     private final boolean apiDocsOpen;
 
@@ -51,8 +51,8 @@ public class SecurityConfiguration {
 
     // DTS-WIKI: customized (Sprint-6 design 03 S3): apiDocsOpen gates /v3/api-docs
     // (public only with the api-docs profile, closed in prod).
-    public SecurityConfiguration(JHipsterProperties jHipsterProperties, Environment environment) {
-        this.jHipsterProperties = jHipsterProperties;
+    public SecurityConfiguration(ApplicationProperties applicationProperties, Environment environment) {
+        this.applicationProperties = applicationProperties;
         this.apiDocsOpen = environment.acceptsProfiles(Profiles.of("api-docs"));
     }
 
@@ -90,7 +90,7 @@ public class SecurityConfiguration {
                 // DTS-WIKI: customized (Sprint-6 design 03 S3): business APIs live under
                 // /api/wiki/** (authenticated, fine-grained checks in SpaceAccessService);
                 // every generated entity endpoint is ROLE_ADMIN only. Keep this list in sync
-                // with jhipster/dts-wiki.jdl entities when the model changes.
+                // with the retired entity URLs when the model changes.
                 authz
                     .requestMatchers("/api/authenticate").permitAll()
                     .requestMatchers("/api/auth-info").permitAll()
@@ -182,7 +182,7 @@ public class SecurityConfiguration {
     JwtDecoder jwtDecoder(ClientRegistrationRepository clientRegistrationRepository, RestTemplateBuilder restTemplateBuilder) {
         NimbusJwtDecoder jwtDecoder = JwtDecoders.fromOidcIssuerLocation(issuerUri);
 
-        OAuth2TokenValidator<Jwt> audienceValidator = new AudienceValidator(jHipsterProperties.getSecurity().getOauth2().getAudience());
+        OAuth2TokenValidator<Jwt> audienceValidator = new AudienceValidator(applicationProperties.getSecurity().getOauth2().getAudience());
         OAuth2TokenValidator<Jwt> withIssuer = JwtValidators.createDefaultWithIssuer(issuerUri);
         OAuth2TokenValidator<Jwt> withAudience = new DelegatingOAuth2TokenValidator<>(withIssuer, audienceValidator);
 
@@ -198,7 +198,6 @@ public class SecurityConfiguration {
      * Custom CSRF handler to provide BREACH protection for Single-Page Applications (SPA).
      *
      * @see <a href="https://docs.spring.io/spring-security/reference/servlet/exploits/csrf.html#csrf-integration-javascript-spa">Spring Security Documentation - Integrating with CSRF Protection</a>
-     * @see <a href="https://github.com/jhipster/generator-jhipster/pull/25907">JHipster - use customized SpaCsrfTokenRequestHandler to handle CSRF token</a>
      * @see <a href="https://stackoverflow.com/q/74447118/65681">CSRF protection not working with Spring Security 6</a>
      */
     static final class SpaCsrfTokenRequestHandler implements CsrfTokenRequestHandler {

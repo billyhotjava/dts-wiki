@@ -8,7 +8,7 @@ import org.springframework.web.bind.annotation.GetMapping;
  * (built into {@code target/classes/static} by frontend-maven-plugin) handles
  * them. API, management, authentication and documentation paths are excluded.
  *
- * DTS-WIKI: hand-written (Sprint-6 design 03 S1, 00 D14); no JHipster equivalent
+ * DTS-WIKI: hand-written (Sprint-6 design 03 S1, 00 D14); application-owned routing
  * is generated with {@code skipClient}.
  */
 @Controller

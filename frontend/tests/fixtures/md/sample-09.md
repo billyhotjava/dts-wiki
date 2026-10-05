@@ -1,6 +1,6 @@
 # DTS Wiki — project instructions
 
-Internal Confluence-style wiki for DTS (future DTS knowledge center). JHipster 9 monolith
+Internal Confluence-style wiki for DTS (future DTS knowledge center). DTS Wiki 9 monolith
 backend (skipClient) + React/antd frontend in `frontend/` bundled into the same jar,
 PostgreSQL as source of truth, bidirectional sync with product git
 repositories (`docs/`, `worklog/`). Planning lives in the dts-rdc repo:
@@ -9,7 +9,7 @@ repositories (`docs/`, `worklog/`). Planning lives in the dts-rdc repo:
 ## Read first (design lives in the dts-rdc worklog; this repo is its submodule `dts-wiki/`)
 1. `../worklog/v1.0.0/sprint-6-202610/features/F0-基线与技术选型spike/design/08-编码任务与交接说明.md` — work order, hard constraints, definition of done
 2. `../worklog/v1.0.0/sprint-6-202610/features/F0-基线与技术选型spike/design/00`–`07` — architecture decisions, domain model, backend, git sync, frontend, deployment, tests
-3. `jhipster/dts-wiki.jdl` — the only place to change entities (regenerate after editing)
+3. `wiki-company/dts-wiki.jdl` — the only place to change entities (regenerate after editing)
 
 If this repo is checked out on its own, the same files are at
 https://github.com/billyhotjava/dts-rdc/tree/main/worklog/v1.0.0/sprint-6-202610/features

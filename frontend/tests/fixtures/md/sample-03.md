@@ -18,16 +18,16 @@
 
 | # | 决策 | 选择 | 理由 |
 |---|------|------|------|
-| D1 | 工程架构 | **JHipster 9 单体（monolith），`skipClient`**：后端由 JHipster 生成；前端为同仓库 `frontend/` 下独立的 React + antd 应用，构建时打进同一个 jar，一个 jar 同时提供页面与 API | 与 DTS 平台一致（dts-stack 各服务均为 JHipster 生成且 skipClient，前端另用 React + antd）；实体、Liquibase、OAuth2、测试脚手架现成 |
-| D2 | 版本 | JHipster **9.2.x**（生成时取"首发满 30 天的最新次版本线的最新补丁"，2026-09-29 之后即为 9.3.x）；Spring Boot 由 JHipster 管理（9.2 = 3.5.15，**不单独升级到 Boot 4**）；**Java 25**（JHipster 9.2 兼容列表含 25）；前端 React 19 + **antd 6** + React Router 8 + TanStack Query 5 + Vite + TypeScript（各取 R-012 规则下的最新稳定补丁）；Node 24 LTS；PostgreSQL 18 | 遵循 DTS 版本原则 R-012；Boot 4 等 JHipster 官方支持后随生成器升级。注：dts-stack 现有前端为 antd 5，本项目按规则直接用 antd 6 |
-| D3 | 身份 | `authenticationType: oauth2`（服务端会话 + OIDC 授权码），IdP = 现网 Keycloak（realm `yuzhicloud`，client `dts-wiki`） | JHipster oauth2 单体即服务端会话登录；与 Jira、现网 wiki 共用账号 |
+| D1 | 工程架构 | **DTS Wiki 9 单体（monolith），`skipClient`**：后端由 DTS Wiki 生成；前端为同仓库 `frontend/` 下独立的 React + antd 应用，构建时打进同一个 jar，一个 jar 同时提供页面与 API | 与 DTS 平台一致（dts-stack 各服务均为 DTS Wiki 生成且 skipClient，前端另用 React + antd）；实体、Liquibase、OAuth2、测试脚手架现成 |
+| D2 | 版本 | DTS Wiki **9.2.x**（生成时取"首发满 30 天的最新次版本线的最新补丁"，2026-09-29 之后即为 9.3.x）；Spring Boot 由 DTS Wiki 管理（9.2 = 3.5.15，**不单独升级到 Boot 4**）；**Java 25**（DTS Wiki 9.2 兼容列表含 25）；前端 React 19 + **antd 6** + React Router 8 + TanStack Query 5 + Vite + TypeScript（各取 R-012 规则下的最新稳定补丁）；Node 24 LTS；PostgreSQL 18 | 遵循 DTS 版本原则 R-012；Boot 4 等 DTS Wiki 官方支持后随生成器升级。注：dts-stack 现有前端为 antd 5，本项目按规则直接用 antd 6 |
+| D3 | 身份 | `authenticationType: oauth2`（服务端会话 + OIDC 授权码），IdP = 现网 Keycloak（realm `yuzhicloud`，client `dts-wiki`） | DTS Wiki oauth2 单体即服务端会话登录；与 Jira、现网 wiki 共用账号 |
 | D4 | 权限 | 只到**产品空间**一级：Keycloak client 角色 `reader`/`editor`/`admin`/`space-<slug>` → 应用内权限 `ROLE_USER`/`ROLE_EDITOR`/`ROLE_ADMIN`/`ROLE_SPACE_<SLUG>` | 与现网 wiki 权限模型相同，迁移零成本；需求方明确降低安全优先级 |
 | D5 | 事实源 | PostgreSQL 18（独立实例 `wiki-db`）存页面树、全部版本、附件元数据、评论、同步状态 | 需求方决定 |
 | D6 | 内容格式 | **Markdown 原文**（与 git 文件字节一致） | 双向同步无损，避免富文本↔Markdown 转换引起伪冲突 |
 | D7 | 与 git 的关系 | 页面分三类：`GIT`（同步根下的 .md，双向同步）、`FOLDER`（目录；有 README.md 时即其正文）、`NATIVE`（仅 PG，如会议纪要） | 研发文档与 AI/开发流程共享同一份文件；非研发内容不污染仓库 |
 | D8 | 同步实现 | 服务端持有各仓库工作副本，调用 **git CLI**（容器内安装 git + openssh）；出站用 outbox 表，入站轮询 fetch；单实例执行（ShedLock） | 现网 wiki 已验证的做法；JGit 对 rebase/SSH 支持不如 CLI 稳定 |
-| D9 | 中文检索 | PG 内实现：`pg_bigm`（首选）或 `zhparser`，由 F0 spike 定；**JHipster `searchEngine: no`** | 不引入 Elasticsearch 集群 |
-| D10 | 前端 | **React + antd**（需求方 2026-09-26 指定），独立工程 `frontend/`：antd 组件与主题（主色 `#2f6f5e`，支持暗色）、TanStack Query 管服务端状态、React Router、react-i18next（默认 zh-cn）；管理后台（空间、同步）也用 antd 实现，不使用 JHipster 生成的前端 | 与 DTS 平台前端（React + antd）统一；避免 Bootstrap 与 antd 混用 |
+| D9 | 中文检索 | PG 内实现：`pg_bigm`（首选）或 `zhparser`，由 F0 spike 定；**DTS Wiki `searchEngine: no`** | 不引入 Elasticsearch 集群 |
+| D10 | 前端 | **React + antd**（需求方 2026-09-26 指定），独立工程 `frontend/`：antd 组件与主题（主色 `#2f6f5e`，支持暗色）、TanStack Query 管服务端状态、React Router、react-i18next（默认 zh-cn）；管理后台（空间、同步）也用 antd 实现，不使用 DTS Wiki 生成的前端 | 与 DTS 平台前端（React + antd）统一；避免 Bootstrap 与 antd 混用 |
 | D11 | 编辑器 | Markdown 原生的所见即所得编辑器：Milkdown 或 Vditor，F0 spike 按"打开-不改-保存字节不变"定 | 保证 D6 |
 | D12 | 附件 | 宿主机卷 `/data/dts-wiki-v2/attachments`（按 sha256 去重），经 `BlobStore` 接口访问，日后换 S3（SeaweedFS） | 先简后繁 |
 | D14 | 前端构建与托管 | `frontend-maven-plugin` 在 `./mvnw -Pprod package` 时安装 Node、执行 `pnpm install && pnpm build`，产物复制到 `target/classes/static`；后端 `SpaForwardController` 把非 API 路由转发到 `index.html`；开发期 Vite dev server 代理 `/api`、`/oauth2`、`/login` 到 8080 | 保持单 jar 部署；前后端同源，会话 Cookie 无跨域问题 |
@@ -38,7 +38,7 @@
 | 文档 | 内容 |
 |------|------|
 | `01-系统架构.md` | 组件、请求与登录流程、部署拓扑 |
-| `02-领域模型.md` + dts-wiki 仓库 `jhipster/dts-wiki.jdl` | 实体、关系、约束；JHipster 生成输入 |
+| `02-领域模型.md` + dts-wiki 仓库 `wiki-company/dts-wiki.jdl` | 实体、关系、约束；DTS Wiki 生成输入 |
 | `03-后端设计.md` | 包结构、服务、REST API、权限、事务、定时任务、Liquibase 约定 |
 | `04-git同步设计.md` | 同步模型、状态机、入站/出站算法、冲突与合并 |
 | `05-前端设计.md` | 路由、页面、组件、状态管理、编辑器与渲染 |

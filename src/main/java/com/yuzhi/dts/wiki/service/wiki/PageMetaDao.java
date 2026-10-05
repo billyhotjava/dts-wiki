@@ -16,7 +16,7 @@ import org.springframework.jdbc.core.RowMapper;
 import org.springframework.stereotype.Repository;
 
 /**
- * {@code page_meta} access via JdbcTemplate (not a JHipster entity, no REST; design 10 S3.2).
+ * {@code page_meta} access via JdbcTemplate (a derived SQL projection, no entity CRUD API; design 10 S3.2).
  */
 @Repository
 public class PageMetaDao {

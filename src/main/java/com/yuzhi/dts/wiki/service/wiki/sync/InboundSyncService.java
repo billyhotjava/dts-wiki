@@ -143,7 +143,7 @@ public class InboundSyncService {
             createFromGit(space, root, pages, path, gitContent, remoteHead, author, branch);
             return ChangeOutcome.APPLIED;
         }
-        Page page = existing.get();
+        Page page = existing.orElseThrow();
         String currentSha = page.getCurrentVersion() == null ? "" : page.getCurrentVersion().getContentSha256();
         if (PageService.sha256(gitContent).equals(currentSha)) {
             return ChangeOutcome.APPLIED; // e.g. our own pushed commit
@@ -183,7 +183,7 @@ public class InboundSyncService {
         if (existing.isEmpty()) {
             return ChangeOutcome.APPLIED;
         }
-        Page page = existing.get();
+        Page page = existing.orElseThrow();
         if (page.getSyncStatus() == PageSyncStatus.SYNCED) {
             page.setDeletedAt(Instant.now());
             page.setUpdatedAt(Instant.now());
@@ -203,7 +203,7 @@ public class InboundSyncService {
         List<Page> pages = pageRepository.findLiveBySpace(space.getId());
         Optional<Page> existing = pages.stream().filter(p -> from.equals(p.getGitPath())).findFirst();
         if (existing.isPresent()) {
-            Page page = existing.get();
+            Page page = existing.orElseThrow();
             page.setGitPath(to);
             if (page.getKind() == PageKind.FOLDER) {
                 repathChildren(page, from, to);
@@ -216,7 +216,7 @@ public class InboundSyncService {
         try {
             String gitContent = git.fileAt(space.getSlug(), "origin/" + branch, to);
             if (existing.isPresent()) {
-                Page page = existing.get();
+                Page page = existing.orElseThrow();
                 String currentSha = page.getCurrentVersion() == null ? "" : page.getCurrentVersion().getContentSha256();
                 if (!PageService.sha256(gitContent).equals(currentSha)) {
                     String[] author = commitAuthor(space.getSlug(), remoteHead, to);
@@ -244,7 +244,7 @@ public class InboundSyncService {
             String dir = path.substring(0, path.length() - "/README.md".length());
             Optional<Page> folder = pages.stream().filter(p -> p.getKind() == PageKind.FOLDER && dir.equals(p.getGitPath())).findFirst();
             if (folder.isPresent()) {
-                pageService.ingestGitVersion(folder.get(), gitContent, fileCommit(space.getSlug(), remoteHead, path), author[0], author[1]);
+                pageService.ingestGitVersion(folder.orElseThrow(), gitContent, fileCommit(space.getSlug(), remoteHead, path), author[0], author[1]);
             } else {
                 Page mount = root.getMountPage();
                 Page parentChain = ensureFolderChain(space, pages, dir, mount);
@@ -267,7 +267,7 @@ public class InboundSyncService {
         }
         Optional<Page> existing = pages.stream().filter(p -> p.getKind() == PageKind.FOLDER && dir.equals(p.getGitPath())).findFirst();
         if (existing.isPresent()) {
-            return existing.get();
+            return existing.orElseThrow();
         }
         String parentDir = dir.contains("/") ? dir.substring(0, dir.lastIndexOf('/')) : "";
         Page parent = ensureFolderChain(space, pages, parentDir, mount);

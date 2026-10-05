@@ -1,7 +1,7 @@
 import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vitest/config';
 
-// Dev server proxies backend paths to the JHipster monolith on :8080
+// Dev server proxies backend paths to the Wiki service on :8080.
 // (design 06 S2.1). Same-origin in prod: frontend is bundled into the jar.
 export default defineConfig({
   plugins: [react()],

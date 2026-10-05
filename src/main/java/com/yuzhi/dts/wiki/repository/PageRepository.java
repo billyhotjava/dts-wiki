@@ -14,7 +14,6 @@ import org.springframework.stereotype.Repository;
  * Spring Data JPA repository for the Page entity.
  *
  * When extending this class, extend PageRepositoryWithBagRelationships too.
- * For more information refer to https://github.com/jhipster/generator-jhipster/issues/17990.
  */
 @Repository
 public interface PageRepository extends PageRepositoryWithBagRelationships, JpaRepository<Page, Long>, JpaSpecificationExecutor<Page> {

@@ -34,10 +34,7 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.context.request.NativeWebRequest;
 import org.springframework.web.context.request.WebRequest;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
-import tech.jhipster.config.JHipsterConstants;
-import tech.jhipster.web.rest.errors.ProblemDetailWithCause;
-import tech.jhipster.web.rest.errors.ProblemDetailWithCause.ProblemDetailWithCauseBuilder;
-import tech.jhipster.web.util.HeaderUtil;
+import org.springframework.http.ProblemDetail;
 
 /**
  * Controller advice to translate the server side exceptions to client-friendly json structures.
@@ -53,7 +50,7 @@ public class ExceptionTranslator extends ResponseEntityExceptionHandler {
 
     private static final Logger LOG = LoggerFactory.getLogger(ExceptionTranslator.class);
 
-    @Value("${jhipster.clientApp.name:dtsWiki}")
+    @Value("${spring.application.name:dtsWiki}")
     private String applicationName;
 
     private final Environment env;
@@ -65,7 +62,7 @@ public class ExceptionTranslator extends ResponseEntityExceptionHandler {
     @ExceptionHandler
     public ResponseEntity<Object> handleAnyException(Throwable ex, NativeWebRequest request) {
         LOG.debug("Converting Exception to Problem Details:", ex);
-        ProblemDetailWithCause pdCause = wrapAndCustomizeProblem(ex, request);
+        ProblemDetail pdCause = wrapAndCustomizeProblem(ex, request);
         return handleExceptionInternal((Exception) ex, pdCause, buildHeaders(ex), HttpStatusCode.valueOf(pdCause.getStatus()), request);
     }
 
@@ -83,18 +80,16 @@ public class ExceptionTranslator extends ResponseEntityExceptionHandler {
         return super.handleExceptionInternal(ex, body, headers, statusCode, request);
     }
 
-    protected ProblemDetailWithCause wrapAndCustomizeProblem(Throwable ex, NativeWebRequest request) {
-        return customizeProblem(getProblemDetailWithCause(ex), ex, request);
+    protected ProblemDetail wrapAndCustomizeProblem(Throwable ex, NativeWebRequest request) {
+        return customizeProblem(getProblemDetail(ex), ex, request);
     }
 
-    private ProblemDetailWithCause getProblemDetailWithCause(Throwable ex) {
-        if (
-            ex instanceof ErrorResponseException exp && exp.getBody() instanceof ProblemDetailWithCause problemDetailWithCause
-        ) return problemDetailWithCause;
-        return ProblemDetailWithCauseBuilder.instance().withStatus(toStatus(ex).value()).build();
+    private ProblemDetail getProblemDetail(Throwable ex) {
+        if (ex instanceof ErrorResponseException exp) return exp.getBody();
+        return ProblemDetail.forStatus(toStatus(ex));
     }
 
-    protected ProblemDetailWithCause customizeProblem(ProblemDetailWithCause problem, Throwable err, NativeWebRequest request) {
+    protected ProblemDetail customizeProblem(ProblemDetail problem, Throwable err, NativeWebRequest request) {
         if (problem.getStatus() <= 0) problem.setStatus(toStatus(err));
 
         if (problem.getType() == null || problem.getType().equals(URI.create("about:blank"))) problem.setType(getMappedType(err));
@@ -124,7 +119,6 @@ public class ExceptionTranslator extends ResponseEntityExceptionHandler {
             (problemProperties == null || !problemProperties.containsKey(FIELD_ERRORS_KEY))
         ) problem.setProperty(FIELD_ERRORS_KEY, getFieldErrors(fieldException));
 
-        problem.setCause(buildCause(err.getCause(), request).orElse(null));
 
         return problem;
     }
@@ -201,7 +195,7 @@ public class ExceptionTranslator extends ResponseEntityExceptionHandler {
 
     private String getCustomizedErrorDetails(Throwable err) {
         Collection<String> activeProfiles = List.of(env.getActiveProfiles());
-        if (activeProfiles.contains(JHipsterConstants.SPRING_PROFILE_PRODUCTION)) {
+        if (activeProfiles.contains("prod")) {
             if (err instanceof HttpMessageConversionException) return "Unable to convert http message";
             if (err instanceof DataAccessException) return "Failure during data access";
             if (containsPackageName(err.getMessage())) return "Unexpected runtime exception";
@@ -224,27 +218,7 @@ public class ExceptionTranslator extends ResponseEntityExceptionHandler {
     }
 
     private HttpHeaders buildHeaders(Throwable err) {
-        return err instanceof BadRequestAlertException badRequestAlertException
-            ? HeaderUtil.createFailureAlert(
-                  applicationName,
-                  true,
-                  badRequestAlertException.getEntityName(),
-                  badRequestAlertException.getErrorKey(),
-                  badRequestAlertException.getMessage()
-              )
-            : null;
-    }
-
-    public Optional<ProblemDetailWithCause> buildCause(final Throwable throwable, NativeWebRequest request) {
-        if (throwable != null && isCasualChainEnabled()) {
-            return Optional.of(customizeProblem(getProblemDetailWithCause(throwable), throwable, request));
-        }
-        return Optional.ofNullable(null);
-    }
-
-    private boolean isCasualChainEnabled() {
-        // Customize as per the needs
-        return CASUAL_CHAIN_ENABLED;
+        return new HttpHeaders();
     }
 
     private boolean containsPackageName(String message) {

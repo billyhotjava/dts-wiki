@@ -1,6 +1,6 @@
 #!/bin/bash
 
-echo "The application will start in ${JHIPSTER_SLEEP}s..." && sleep ${JHIPSTER_SLEEP}
+echo "The application will start in ${WIKI_STARTUP_DELAY}s..." && sleep ${WIKI_STARTUP_DELAY}
 
 # usage: file_env VAR [DEFAULT]
 #    ie: file_env 'XYZ_DB_PASSWORD' 'example'
@@ -35,6 +35,5 @@ file_env 'SPRING_DATASOURCE_PASSWORD'
 file_env 'SPRING_LIQUIBASE_URL'
 file_env 'SPRING_LIQUIBASE_USER'
 file_env 'SPRING_LIQUIBASE_PASSWORD'
-file_env 'JHIPSTER_REGISTRY_PASSWORD'
 
 exec java ${JAVA_OPTS} -noverify -XX:+AlwaysPreTouch -cp /app/resources/:/app/classes/:/app/libs/* "com.yuzhi.dts.wiki.DtsWikiApp"  "$@"

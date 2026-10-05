@@ -12,7 +12,6 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
-import tech.jhipster.web.util.PaginationUtil;
 
 @RestController
 @RequestMapping("/api")
@@ -37,7 +36,8 @@ public class PublicUserResource {
         LOG.debug("REST request to get all public User names");
 
         final Page<UserDTO> page = userService.getAllPublicUsers(pageable);
-        HttpHeaders headers = PaginationUtil.generatePaginationHttpHeaders(ServletUriComponentsBuilder.fromCurrentRequest(), page);
+        HttpHeaders headers = new HttpHeaders();
+        headers.set("X-Total-Count", Long.toString(page.getTotalElements()));
         return new ResponseEntity<>(page.getContent(), headers, HttpStatus.OK);
     }
 }

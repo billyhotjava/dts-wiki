@@ -9,7 +9,7 @@ import org.springframework.boot.hibernate.autoconfigure.HibernatePropertiesCusto
 import org.springframework.cache.annotation.EnableCaching;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import tech.jhipster.config.JHipsterProperties;
+import com.yuzhi.dts.wiki.config.ApplicationProperties;
 
 @Configuration
 @EnableCaching
@@ -17,8 +17,8 @@ public class CacheConfiguration {
 
     private final javax.cache.configuration.Configuration<Object, Object> jcacheConfiguration;
 
-    public CacheConfiguration(JHipsterProperties jHipsterProperties) {
-        JHipsterProperties.Cache.Caffeine caffeine = jHipsterProperties.getCache().getCaffeine();
+    public CacheConfiguration(ApplicationProperties applicationProperties) {
+        ApplicationProperties.Cache.Caffeine caffeine = applicationProperties.getCache().getCaffeine();
 
         CaffeineConfiguration<Object, Object> caffeineConfiguration = new CaffeineConfiguration<>();
         caffeineConfiguration.setMaximumSize(OptionalLong.of(caffeine.getMaxEntries()));
@@ -63,7 +63,6 @@ public class CacheConfiguration {
             createCache(cm, com.yuzhi.dts.wiki.domain.ActivityEvent.class.getName());
             createCache(cm, com.yuzhi.dts.wiki.domain.Label.class.getName());
             createCache(cm, com.yuzhi.dts.wiki.domain.Label.class.getName() + ".pageses");
-            // jhipster-needle-caffeine-add-entry
         };
     }
 

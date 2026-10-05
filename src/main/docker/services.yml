@@ -1,11 +1,7 @@
-# This configuration is intended for development purpose, it's **your** responsibility to harden it for production
+# Local development database; identity is supplied by external configuration.
 name: dtswiki
 services:
   postgresql:
     extends:
       file: ./postgresql.yml
       service: postgresql
-  keycloak:
-    extends:
-      file: ./keycloak.yml
-      service: keycloak

@@ -53,7 +53,6 @@ public class SyncState implements Serializable {
     @JoinColumn(unique = true)
     private SyncRoot syncRoot;
 
-    // jhipster-needle-entity-add-field - JHipster will add fields here
 
     public Long getId() {
         return this.id;
@@ -146,7 +145,6 @@ public class SyncState implements Serializable {
         return this;
     }
 
-    // jhipster-needle-entity-add-getters-setters - JHipster will add getters and setters here
 
     @Override
     public boolean equals(Object o) {

@@ -53,7 +53,7 @@ class CustomClaimConverterIT {
     private void mockHttpGetUserInfo(ObjectNode userInfo) {
         when(
             restTemplate.exchange(
-                eq("https://api.jhipster.org/user"),
+                eq("https://identity.example/user"),
                 eq(HttpMethod.GET),
                 any(HttpEntity.class),
                 ArgumentMatchers.<Class<ObjectNode>>any()

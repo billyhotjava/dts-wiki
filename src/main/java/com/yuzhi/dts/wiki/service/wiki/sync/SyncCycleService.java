@@ -99,7 +99,7 @@ public class SyncCycleService {
         setFetchTime(roots);
         String remoteHead = git.run(slug, List.of("rev-parse", "origin/" + branch), 30);
 
-        InboundSyncService.InboundReport inboundReport = inbound.inbound(space, branch, lastSynced, remoteHead);
+        InboundSyncService.InboundReport inboundReport = inbound.inbound(space, roots, branch, lastSynced, remoteHead);
         LOG.info("Inbound {}: base={} complete={} applied={} conflicts={} skipped={} head={}", slug, lastSynced, inboundReport.complete(), inboundReport.applied(), inboundReport.conflicts(), inboundReport.skipped(), inboundReport.remoteHead());
         if (!inboundReport.complete()) {
             markAll(space, roots, SyncRunStatus.ERROR, "Inbound incomplete, checkpoint held at " + lastSynced);
@@ -127,7 +127,7 @@ public class SyncCycleService {
                 LOG.info("Push rejected for {}, re-fetch + full inbound (attempt {}/{})", slug, attempt + 1, PUSH_RETRIES);
                 git.run(slug, List.of("fetch", "origin", branch), 60);
                 String newHead = git.run(slug, List.of("rev-parse", "origin/" + branch), 30);
-                InboundSyncService.InboundReport retry = inbound.inbound(space, branch, remoteHead, newHead);
+                InboundSyncService.InboundReport retry = inbound.inbound(space, roots, branch, remoteHead, newHead);
                 if (!retry.complete()) {
                     markAll(space, roots, SyncRunStatus.ERROR, "Re-inbound incomplete, checkpoint held");
                     return;
@@ -196,8 +196,8 @@ public class SyncCycleService {
     private String checkpoint(List<SyncRoot> roots) {
         for (SyncRoot root : roots) {
             var state = stateRepository.findOneBySyncRootId(root.getId());
-            if (state.isPresent() && state.get().getLastSyncedCommit() != null) {
-                return state.get().getLastSyncedCommit();
+            if (state.isPresent() && state.orElseThrow().getLastSyncedCommit() != null) {
+                return state.orElseThrow().getLastSyncedCommit();
             }
         }
         return null;
