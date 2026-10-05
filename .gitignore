@@ -119,6 +119,13 @@ Desktop.ini
 ######################
 /bin/
 /deploy/
+!/deploy/
+/deploy/*
+!/deploy/release.sh
+!/deploy/compose.yml
+!/deploy/.env.example
+!/deploy/backup.sh
+!/deploy/restore-check.sh
 
 ######################
 # Logs

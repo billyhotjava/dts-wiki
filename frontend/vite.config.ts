@@ -36,5 +36,8 @@ export default defineConfig({
   test: {
     environment: 'jsdom',
     setupFiles: ['./src/test-setup.ts'],
+    // Editor fixtures allocate full DOMs; bound workers on shared build hosts.
+    maxWorkers: 2,
+    testTimeout: 15000,
   },
 });

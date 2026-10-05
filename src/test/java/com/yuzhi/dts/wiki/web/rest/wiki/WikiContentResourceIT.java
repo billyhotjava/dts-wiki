@@ -26,6 +26,9 @@ import org.springframework.transaction.annotation.Transactional;
 @AutoConfigureMockMvc
 @Transactional
 @WithMockUser(authorities = "ROLE_ADMIN")
+@org.springframework.test.context.TestPropertySource(properties = {
+    "application.wiki.legacy.aliases-json={\"old-team\":{\"spaceSlug\":\"query-team\",\"rootPath\":\"notes\"}}"
+})
 class WikiContentResourceIT {
     @Autowired MockMvc mvc;
     @Autowired PageService pages;
@@ -119,6 +122,28 @@ class WikiContentResourceIT {
         mvc.perform(get("/api/wiki/spaces/query-team/markdown").param("path", "../notes/review"))
             .andExpect(status().isNotFound());
         mvc.perform(get("/api/wiki/spaces/query-team/markdown").param("path", "missing.md"))
+            .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void legacyLinksUseExternalAliasesAndCurrentAuthorization() throws Exception {
+        var page = pageRepository.findById(task).orElseThrow();
+        page.setGitPath("notes/review");
+        page.setKind(com.yuzhi.dts.wiki.domain.enumeration.PageKind.FOLDER);
+        pageRepository.saveAndFlush(page);
+        mvc.perform(get("/api/wiki/legacy/resolve").param("space", "old-team").param("path", "review/README.md"))
+            .andExpect(status().isOk()).andExpect(jsonPath("$.pageId").value(task))
+            .andExpect(jsonPath("$.spaceSlug").value("query-team")).andExpect(header().string("Cache-Control", "no-store"));
+        mvc.perform(get("/api/wiki/legacy/resolve").param("space", "unknown").param("path", "review"))
+            .andExpect(status().isNotFound());
+        mvc.perform(get("/api/wiki/legacy/resolve").param("space", "old-team").param("path", "../review"))
+            .andExpect(status().isNotFound());
+        mvc.perform(get("/api/wiki/legacy/resolve").param("space", "old-team").param("path", "review")
+            .with(user("outsider").authorities(() -> "ROLE_SPACE_PRIVATE_TEAM"))).andExpect(status().isNotFound());
+        // Model an inbound deletion; imported folders cannot be deleted through the UI.
+        page.setDeletedAt(java.time.Instant.now());
+        pageRepository.saveAndFlush(page);
+        mvc.perform(get("/api/wiki/legacy/resolve").param("space", "old-team").param("path", "review"))
             .andExpect(status().isNotFound());
     }
 }

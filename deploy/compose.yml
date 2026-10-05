@@ -1,0 +1,54 @@
+# DTS Wiki v2 compose template (Sprint-6 design 06 S4).
+# Lives on .50 at /data/dts-wiki-v2/compose.yml with a server-side .env (never in git).
+# Ports: host 18091 -> app 8080. DB has no published port.
+name: dts-wiki-v2
+services:
+  wiki-db:
+    image: dts-wiki-db:${DB_TAG:-18-bigm}
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: wiki
+      POSTGRES_USER: wiki
+      POSTGRES_PASSWORD: ${WIKI_DB_PASSWORD:?set WIKI_DB_PASSWORD in .env}
+    volumes:
+      - ./db:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U wiki -d wiki"]
+      interval: 10s
+      retries: 10
+  wiki-app:
+    image: dts-wiki-app:${APP_TAG:?set APP_TAG in .env}
+    restart: unless-stopped
+    mem_limit: 768m # design 06 S2.1: small heap, RSS target < 400 MB
+    depends_on:
+      wiki-db:
+        condition: service_healthy
+    ports:
+      - "18091:8080"
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      SPRING_DATASOURCE_URL: jdbc:postgresql://wiki-db:5432/wiki
+      SPRING_DATASOURCE_USERNAME: wiki
+      SPRING_DATASOURCE_PASSWORD: ${WIKI_DB_PASSWORD:?set WIKI_DB_PASSWORD in .env}
+      SPRING_LIQUIBASE_URL: jdbc:postgresql://wiki-db:5432/wiki
+      SPRING_SECURITY_OAUTH2_CLIENT_PROVIDER_OIDC_ISSUER_URI: ${WIKI_OIDC_ISSUER:?set WIKI_OIDC_ISSUER in .env}
+      SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_OIDC_CLIENT_ID: ${WIKI_OIDC_CLIENT_ID:-dts-wiki}
+      SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_OIDC_CLIENT_SECRET: ${WIKI_OIDC_CLIENT_SECRET:?set WIKI_OIDC_CLIENT_SECRET in .env}
+      SERVER_FORWARD_HEADERS_STRATEGY: framework
+      APPLICATION_WIKI_PUBLIC_URL: ${WIKI_PUBLIC_URL:-http://10.20.0.50:18091}
+      APPLICATION_WIKI_CONTENT_REPO_URL: ${WIKI_CONTENT_REPO_URL:?set WIKI_CONTENT_REPO_URL in .env}
+      APPLICATION_WIKI_CONTENT_BRANCH: ${WIKI_CONTENT_BRANCH:-main}
+      APPLICATION_WIKI_CONTENT_MANIFEST_PATH: ${WIKI_CONTENT_MANIFEST_PATH:-dts-worklog/spaces.yml}
+      APPLICATION_WIKI_CONTENT_DEPLOY_KEY_PATH: /data/secrets/content.key
+      APPLICATION_WIKI_OUTBOUND_ENABLED: "false"
+      APPLICATION_WIKI_LEGACY_ALIASES_JSON: ${WIKI_LEGACY_ALIASES_JSON:-}
+      APPLICATION_WIKI_MCP_ENABLED: ${WIKI_MCP_ENABLED:-false}
+      APPLICATION_WIKI_MCP_RESOURCE_URI: ${WIKI_MCP_RESOURCE_URI:-http://localhost:8080/mcp}
+      TZ: Asia/Shanghai
+    volumes:
+      - ./repos:/data/repos
+      - ./secrets:/data/secrets
+      - ./secrets/known_hosts:/home/wiki/.ssh/known_hosts:ro
+      - ./attachments:/data/attachments
+# Directory ownership on .50: repos/, secrets/, attachments/ belong to uid 1001
+# (container user wiki); secrets/*.key must be 0600. See deploy/release.sh.

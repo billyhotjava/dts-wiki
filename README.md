@@ -32,10 +32,7 @@ Preload the image before running tests; never point tests at a business database
 ```sh
 docker build --pull=false -f src/main/docker/postgres.Dockerfile \
   -t dts-wiki-db:18-bigm .
-./mvnw clean verify
-cd frontend
-pnpm test
-pnpm build
+./build.sh verify
 ```
 
 pnpm's workspace policy permits the pinned esbuild installation script. Other
@@ -80,9 +77,11 @@ spaces. Install one read-only repository deploy key, never a personal access tok
 
 ## Release
 
-`deploy/release.sh` builds and transfers a pinned application image. Set
-`JAVA_HOME` explicitly if the JDK is installed elsewhere. Runtime configuration
-is external to source control; see `deploy/compose.yml` for required variables.
+`deploy/release.sh --prepare <tag> <new-bundle-dir>` verifies and prepares local
+images; `--deploy <bundle-dir> <ssh-target>` is a separate runtime operation.
+Set `JAVA_HOME` explicitly if the JDK is installed elsewhere. Runtime configuration
+is external to source control; see `deploy/compose.yml` and
+[the operations runbook](docs/operations.md) for configuration, backup and rollback.
 Source verification and runtime deployment are separate steps. The v2 instance
 uses port 18091 and must not replace the existing Wiki instance without a
 separately approved migration window.

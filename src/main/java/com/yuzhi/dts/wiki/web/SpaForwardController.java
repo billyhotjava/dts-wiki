@@ -5,11 +5,10 @@ import org.springframework.web.bind.annotation.GetMapping;
 
 /**
  * Forwards frontend routes to {@code index.html} so the React application
- * (built into {@code target/classes/static} by frontend-maven-plugin) handles
+ * (verified by {@code build.sh} and bundled by Maven) handles
  * them. API, management, authentication and documentation paths are excluded.
  *
- * DTS-WIKI: hand-written (Sprint-6 design 03 S1, 00 D14); application-owned routing
- * is generated with {@code skipClient}.
+ * Routes are maintained with the React router; API paths are never forwarded.
  */
 @Controller
 public class SpaForwardController {

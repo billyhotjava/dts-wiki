@@ -34,8 +34,9 @@ class TechnicalStructureTest {
         .ignoreDependency(alwaysTrue(), belongToAnyOf(
             com.yuzhi.dts.wiki.config.Constants.class,
             com.yuzhi.dts.wiki.config.ApplicationProperties.class,
-            // DTS-WIKI: customized: business settings holder, same role as ApplicationProperties
-            com.yuzhi.dts.wiki.config.WikiProperties.class
+            // Pure settings holders can be consumed without depending on bean configuration.
+            com.yuzhi.dts.wiki.config.WikiProperties.class,
+            com.yuzhi.dts.wiki.config.WikiMcpProperties.class
         ));
 
     // DTS-WIKI: customized (Sprint-6 design 03 S1/S6): business REST must go through

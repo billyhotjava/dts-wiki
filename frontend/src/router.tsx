@@ -13,6 +13,7 @@ const PageEditorPage = lazy(() => import('./features/edit/PageEditorPage').then(
 const TrashPage = lazy(() => import('./features/home/TrashPage').then(m => ({ default: m.TrashPage })));
 const SprintBoardPage = lazy(() => import('./features/query/SprintBoardPage').then(m => ({ default: m.SprintBoardPage })));
 const SearchPage = lazy(() => import('./features/search/SearchPage').then(m => ({ default: m.SearchPage })));
+const LegacyPage = lazy(() => import('./features/page/LegacyPage').then(m => ({ default: m.LegacyPage })));
 
 function Suspended({ children }: { children: React.ReactNode }) {
   return <Suspense fallback={<Spin fullscreen description="Loading" />}>{children}</Suspense>;
@@ -24,7 +25,7 @@ const editElement = (mode: 'edit' | 'new') => (
   </Suspended>
 );
 
-// W5 routes (design 05 S2 subset): + edit/new. Conflict/history/search/admin arrive later.
+// Business routes share the authenticated application shell.
 export const router = createBrowserRouter([
   {
     element: (
@@ -35,6 +36,7 @@ export const router = createBrowserRouter([
     children: [
       { path: '/', element: <HomePage /> },
       { path: '/search', element: <Suspended><SearchPage /></Suspended> },
+      { path: '/p/:legacySpace/*', element: <Suspended><LegacyPage /></Suspended> },
       { path: '/s/:slug', element: <SpaceHomePage /> },
       {
         path: '/s/:slug/p/:pageId',

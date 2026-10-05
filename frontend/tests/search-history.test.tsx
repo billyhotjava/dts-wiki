@@ -1,6 +1,7 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
+import { ConfigProvider } from 'antd';
 import { Highlight } from '../src/features/search/Highlight';
 import { lineDiff } from '../src/features/history/lineDiff';
 import { HistoryTab } from '../src/features/history/HistoryTab';
@@ -11,8 +12,8 @@ vi.mock('../src/api/hooks', () => ({ useRestoreVersion: vi.fn(), useVersion: vi.
 vi.mock('../src/components/MarkdownView', () => ({ MarkdownView: () => <div /> }));
 
 describe('Search and history', () => {
+  afterEach(async () => { await act(async () => cleanup()); });
   beforeEach(() => {
-    cleanup();
     vi.mocked(useVersions).mockReturnValue({ data: { items: [{ versionNo: 1, authorName: 'alice', viaAgent: 'personal-agent', source: 'WEB', message: '', createdAt: '2026-10-05T06:00:00Z' }], total: 1 }, isLoading: false, isError: false, refetch: vi.fn() } as unknown as ReturnType<typeof useVersions>);
     vi.mocked(useVersion).mockReturnValue({ data: { contentMd: 'Version one' }, isLoading: false, isError: false, refetch: vi.fn() } as unknown as ReturnType<typeof useVersion>);
     vi.mocked(useRestoreVersion).mockReturnValue({ mutateAsync: vi.fn(), isPending: false } as unknown as ReturnType<typeof useRestoreVersion>);
@@ -42,15 +43,16 @@ describe('Search and history', () => {
   });
 
   it('shows agent attribution and hides restore for Git history', () => {
-    render(<MemoryRouter><HistoryTab page={{ id: 1, versionNo: 2, spaceSlug: 'team-notes', editable: true, gitReadOnly: true } as PageView} /></MemoryRouter>);
+    render(<ConfigProvider theme={{ token: { motion: false } }}><MemoryRouter><HistoryTab page={{ id: 1, versionNo: 2, spaceSlug: 'team-notes', editable: true, gitReadOnly: true } as PageView} /></MemoryRouter></ConfigProvider>);
     expect(screen.getByText('alice（经 personal-agent）')).toBeVisible();
     fireEvent.click(screen.getByRole('button', { name: '对比版本' }));
     expect(screen.queryByRole('button', { name: '恢复为版本 1' })).toBeNull();
   });
 
   it('offers restore for an editable native page', async () => {
-    render(<MemoryRouter><HistoryTab page={{ id: 1, versionNo: 2, spaceSlug: 'team-notes', editable: true, gitReadOnly: false } as PageView} /></MemoryRouter>);
+    render(<ConfigProvider theme={{ token: { motion: false } }}><MemoryRouter><HistoryTab page={{ id: 1, versionNo: 2, spaceSlug: 'team-notes', editable: true, gitReadOnly: false } as PageView} /></MemoryRouter></ConfigProvider>);
     fireEvent.click(screen.getByRole('button', { name: '对比版本' }));
-    await waitFor(() => expect(screen.getByRole('button', { name: '恢复为版本 1' })).toBeVisible());
+    // jsdom does not finish modal CSS motion; the browser fixture checks visibility.
+    await waitFor(() => expect(screen.getByRole('button', { name: '恢复为版本 1' })).toBeEnabled());
   });
 });

@@ -26,7 +26,6 @@
     <include file="config/liquibase/changelog/20231211063526_added_entity_Notification.xml" relativeToChangelogFile="false"/>
     <include file="config/liquibase/changelog/20231211063626_added_entity_ActivityEvent.xml" relativeToChangelogFile="false"/>
     <include file="config/liquibase/changelog/20231211063726_added_entity_Label.xml" relativeToChangelogFile="false"/>
-    <!-- jhipster-needle-liquibase-add-changelog - JHipster will add liquibase changelogs here -->
     <include file="config/liquibase/changelog/20231211062526_added_entity_constraints_SyncRoot.xml" relativeToChangelogFile="false"/>
     <include file="config/liquibase/changelog/20231211062626_added_entity_constraints_SyncState.xml" relativeToChangelogFile="false"/>
     <include file="config/liquibase/changelog/20231211062726_added_entity_constraints_Page.xml" relativeToChangelogFile="false"/>
@@ -39,9 +38,7 @@
     <include file="config/liquibase/changelog/20231211063426_added_entity_constraints_PageWatch.xml" relativeToChangelogFile="false"/>
     <include file="config/liquibase/changelog/20231211063526_added_entity_constraints_Notification.xml" relativeToChangelogFile="false"/>
     <include file="config/liquibase/changelog/20231211063626_added_entity_constraints_ActivityEvent.xml" relativeToChangelogFile="false"/>
-    <!-- jhipster-needle-liquibase-add-constraints-changelog - JHipster will add liquibase constraints changelogs here -->
-    <!-- jhipster-needle-liquibase-add-incremental-changelog - JHipster will add incremental liquibase changelogs here -->
-    <!-- DTS-WIKI: customized (Sprint-6 design 02 S3): custom changes always run after generated ones. -->
+    <!-- Company-owned additions follow the immutable historical migration baseline. -->
     <include file="config/liquibase/changelog/9000_extensions.xml" relativeToChangelogFile="false"/>
     <include file="config/liquibase/changelog/9001_constraints.xml" relativeToChangelogFile="false"/>
     <include file="config/liquibase/changelog/9002_search.xml" relativeToChangelogFile="false"/>

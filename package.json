@@ -8,7 +8,7 @@
   "scripts": {
     "backend:start": "./mvnw spring-boot:run",
     "backend:test": "./mvnw -B -ntp clean verify",
-    "backend:package": "./mvnw -B -ntp -Pprod clean verify",
+    "backend:package": "./build.sh verify",
     "frontend:test": "pnpm --dir frontend test",
     "frontend:build": "pnpm --dir frontend build"
   },
@@ -18,6 +18,6 @@
     "prettier-plugin-packagejson": "3.0.2"
   },
   "engines": {
-    "node": ">=24.18.0"
+    "node": "24"
   }
 }

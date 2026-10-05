@@ -986,48 +986,7 @@
             </properties>
             <build>
                 <plugins>
-                    <!-- DTS-WIKI: customized (Sprint-6 design 00 D14, 06 S2.1): build the
-                         React frontend and bundle it into the jar's static resources. -->
-                    <plugin>
-                        <groupId>com.github.eirslett</groupId>
-                        <artifactId>frontend-maven-plugin</artifactId>
-                        <version>1.15.4</version>
-                        <configuration>
-                            <nodeVersion>v24.14.1</nodeVersion>
-                            <pnpmVersion>10.33.0</pnpmVersion>
-                            <workingDirectory>frontend</workingDirectory>
-                            <installDirectory>target</installDirectory>
-                        </configuration>
-                        <executions>
-                            <execution>
-                                <id>install-node-and-pnpm</id>
-                                <goals>
-                                    <goal>install-node-and-pnpm</goal>
-                                </goals>
-                            </execution>
-                            <execution>
-                                <id>pnpm-install</id>
-                                <goals>
-                                    <goal>pnpm</goal>
-                                </goals>
-                                <configuration>
-                                    <arguments>install --frozen-lockfile</arguments>
-                                    <environmentVariables>
-                                        <npm_config_registry>https://registry.npmmirror.com</npm_config_registry>
-                                    </environmentVariables>
-                                </configuration>
-                            </execution>
-                            <execution>
-                                <id>pnpm-build</id>
-                                <goals>
-                                    <goal>pnpm</goal>
-                                </goals>
-                                <configuration>
-                                    <arguments>run build</arguments>
-                                </configuration>
-                            </execution>
-                        </executions>
-                    </plugin>
+                    <!-- build.sh produces and verifies the frontend before this profile bundles it. -->
                     <plugin>
                         <groupId>org.apache.maven.plugins</groupId>
                         <artifactId>maven-resources-plugin</artifactId>
