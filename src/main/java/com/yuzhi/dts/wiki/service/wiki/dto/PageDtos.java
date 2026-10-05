@@ -50,7 +50,9 @@ public final class PageDtos {
         }
     }
 
-    public record SaveContentRequest(Integer baseVersionNo, String contentMd, String message) {}
+    public record SaveContentRequest(Integer baseVersionNo, String contentMd, String message, String title) {
+        public SaveContentRequest(Integer baseVersionNo, String contentMd, String message) { this(baseVersionNo,contentMd,message,null); }
+    }
 
     public record SaveContentResult(Integer versionNo) {}
 

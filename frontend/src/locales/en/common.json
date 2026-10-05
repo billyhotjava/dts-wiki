@@ -136,5 +136,19 @@
       "SYNC_CONFLICT": "Sync needs attention"
     },
     "loading": "Loading"
+  },
+  "editing": {
+    "recoverable": "An unpublished draft is available",
+    "recover": "Recover draft",
+    "discard": "Discard draft",
+    "presence": "{{names}} are editing this page",
+    "failed": "Draft or presence is unavailable. Keep your current content.",
+    "saved": "Draft saved at {{time}}; unpublished",
+    "hint": "Drafts autosave every 10 seconds. Saving the page publishes a version."
+  },
+  "trash": {
+    "title": "Trash",
+    "restore": "Restore",
+    "restoreFailed": "Restore failed"
   }
 }

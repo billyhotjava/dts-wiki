@@ -2,7 +2,7 @@ import { Alert, Button, Input, Segmented, Select, Space, Spin, Tabs, Typography,
 import { useTranslation } from 'react-i18next';
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router';
-import { uploadAttachment, useCreatePage, usePage, useSavePageContent, useTemplates, type PageView } from '../../api/hooks';
+import { uploadAttachment, useCreatePage, usePage, useSavePageContent, useTemplates } from '../../api/hooks';
 import { splitFrontmatter } from '../../utils/frontmatter';
 import { AsyncState } from '../../components/AsyncState';
 import { AttachmentsTab } from './AttachmentsTab';
@@ -11,14 +11,14 @@ import { MentionPicker } from './MentionPicker';
 import { minimalDiff } from './minimalDiff';
 import { PropertiesForm } from './PropertiesForm';
 import { SourceEditor, type SourceEditorHandle } from './SourceEditor';
+import { EditingContinuity, type PrivateDraft } from './EditingContinuity';
 import { VersionConflictModal } from './VersionConflictModal';
 
 // Page editing (design 05 S4 + 10 S4.3): title, properties (frontmatter), save
 // (Ctrl/Cmd+S), message, cancel; 409 conflict modal; 422 frontmatter errors;
 // images auto-upload; new pages pick a template.
-// Draft autosave + presence arrive with W8 (endpoints do not exist yet).
-// NOTE (W5b): body is saved as the editor serializes it; minimalDiff block-level
-// preservation arrives with W5c (F1) — see 10 S4.1.
+// Private drafts and soft presence preserve edits without publishing versions.
+// Unchanged Markdown blocks retain their original bytes during visual editing.
 export function PageEditorPage({ mode }: { mode: 'edit' | 'new' }) {
   const { slug = '', pageId = '' } = useParams();
   const [search] = useSearchParams();
@@ -45,17 +45,22 @@ export function PageEditorPage({ mode }: { mode: 'edit' | 'new' }) {
   const editorRef = useRef<MarkdownEditorHandle>(null);
   const sourceRef = useRef<SourceEditorHandle>(null);
   const effectiveId = id ?? createdId;
+  const initialized = useRef<number | null>(null);
+  const originalMarkdown = useRef('');
+  const [baseVersionNo, setBaseVersionNo] = useState(0);
+  const [sourceRevision, setSourceRevision] = useState(0);
 
   useEffect(() => {
-    if (mode === 'edit' && page) {
+    if (mode === 'edit' && page && page.id === id && initialized.current !== id) {
+      initialized.current = id; originalMarkdown.current = page.contentMd ?? '';
+      setBaseVersionNo(page.versionNo ?? 0);
       setTitle(page.title);
       const split = splitFrontmatter(page.contentMd ?? '');
       setFrontmatter(split.front);
       setContent(split.body);
     }
-  }, [mode, page]);
+  }, [mode, page, id]);
 
-  const currentBase = (p: PageView | undefined) => p?.versionNo ?? 0;
 
   const fullNow = (): string => {
     if (sourceMode) {
@@ -100,12 +105,12 @@ export function PageEditorPage({ mode }: { mode: 'edit' | 'new' }) {
     if (mode === 'new') {
       return frontmatter + editorBody;
     }
-    const originalBody = splitFrontmatter(page?.contentMd ?? '').body;
+    const originalBody = splitFrontmatter(originalMarkdown.current).body;
     return frontmatter + minimalDiff(originalBody, editorBody);
   };
 
   const doSave = async (force = false) => {
-    if (mode === 'edit' && (!page?.editable || page.gitReadOnly)) return;
+    if (mode === 'edit' && (page?.id !== id || !page.editable || page.gitReadOnly)) return;
     const body = composeSaveBody();
     try {
       if (effectiveId === null) {
@@ -114,8 +119,8 @@ export function PageEditorPage({ mode }: { mode: 'edit' | 'new' }) {
         setCreatedId(created.id);
         navigate(`/s/${slug}/p/${created.id}`);
       } else {
-        const base = force && conflict !== null ? conflict : currentBase(page);
-        await saveContent.mutateAsync({ id: effectiveId, slug, body: { baseVersionNo: base, contentMd: body, message: messageText || undefined } });
+        const base = force && conflict !== null ? conflict : baseVersionNo;
+        await saveContent.mutateAsync({ id: effectiveId, slug, body: { baseVersionNo: base, contentMd: body, message: messageText || undefined, title: title.trim() } });
         setFrontmatterErrors([]);
         void message.success('已保存');
         navigate(`/s/${slug}/p/${effectiveId}`);
@@ -133,7 +138,7 @@ export function PageEditorPage({ mode }: { mode: 'edit' | 'new' }) {
   };
 
   useEffect(() => {
-    if (mode === 'edit' && (!page?.editable || page.gitReadOnly)) return;
+    if (mode === 'edit' && (page?.id !== id || !page.editable || page.gitReadOnly)) return;
     const onKey = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key === 's') {
         e.preventDefault();
@@ -150,7 +155,7 @@ export function PageEditorPage({ mode }: { mode: 'edit' | 'new' }) {
       window.removeEventListener('beforeunload', onUnload);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [content, title, messageText, createdId, page]);
+  }, [content, frontmatter, sourceMode, title, messageText, createdId, page, baseVersionNo]);
 
   const handleSourceChange = (full: string) => {
     const { front, body } = splitFrontmatter(full);
@@ -159,14 +164,14 @@ export function PageEditorPage({ mode }: { mode: 'edit' | 'new' }) {
   };
 
   const handleUpload = async (file: File): Promise<string> => {
-    if (mode === 'edit' && (!page?.editable || page.gitReadOnly)) throw new Error('Page is read-only');
+    if (mode === 'edit' && (page?.id !== id || !page.editable || page.gitReadOnly)) throw new Error('Page is read-only');
     let pid = effectiveId;
     if (pid === null) {
       // uploads need a page: auto-create the (still empty) page first
       const parentId = search.get('parent') === null ? undefined : Number(search.get('parent'));
       const created = await createPage.mutateAsync({ parentId, title: title.trim() || '未命名' });
       pid = created.id;
-      setCreatedId(pid);
+      setCreatedId(pid); setBaseVersionNo(created.versionNo ?? 0); originalMarkdown.current = created.contentMd ?? '';
     }
     return uploadAttachment(pid, file);
   };
@@ -188,6 +193,10 @@ export function PageEditorPage({ mode }: { mode: 'edit' | 'new' }) {
   return (
     <>
       <Space orientation="vertical" style={{ width: '100%' }} size="middle">
+        <EditingContinuity pageId={effectiveId} enabled={Boolean(effectiveId && (mode === 'new' || page?.id === id && page.editable && !page.gitReadOnly))} baseVersionNo={baseVersionNo} initialMarkdown={originalMarkdown.current} getContent={composeSaveBody} onRecover={(draft: PrivateDraft) => {
+          const split = splitFrontmatter(draft.contentMd); setFrontmatter(split.front); setContent(split.body);
+          setBaseVersionNo(draft.baseVersionNo); setSourceInit(draft.contentMd); setSourceMode(true); setSourceRevision(value => value + 1);
+        }} />
         <Input value={title} onChange={e => setTitle(e.target.value)} placeholder="标题" />
         {mode === 'new' && (
           <Select
@@ -219,10 +228,10 @@ export function PageEditorPage({ mode }: { mode: 'edit' | 'new' }) {
                     </Button>
                   </Space>
                   {sourceMode ? (
-                    <SourceEditor key={`src-${effectiveId ?? 'new'}`} ref={sourceRef} value={sourceInit} onChange={handleSourceChange} />
+                    <SourceEditor key={`src-${effectiveId ?? 'new'}-${sourceRevision}`} ref={sourceRef} value={sourceInit} onChange={handleSourceChange} />
                   ) : (
                     <MarkdownEditor
-                      key={`${mode}-${effectiveId ?? 'new'}-${templateId ?? ''}`}
+                      key={`${mode}-${effectiveId ?? 'new'}-${templateId ?? ''}-${sourceRevision}`}
                       ref={editorRef}
                       value={initial}
                       onChange={handleEditorChange}
@@ -243,7 +252,7 @@ export function PageEditorPage({ mode }: { mode: 'edit' | 'new' }) {
           </Button>
           <Button onClick={() => navigate(-1)}>取消</Button>
         </Space>
-        <Typography.Text type="secondary">Ctrl/⌘+S 保存 · 页内跳转前请先保存（草稿箱随 W8 到来）</Typography.Text>
+        <Typography.Text type="secondary">Ctrl/⌘+S 保存 · 草稿不会发布为页面版本</Typography.Text>
       </Space>
       <VersionConflictModal
         open={conflict !== null}
@@ -251,7 +260,12 @@ export function PageEditorPage({ mode }: { mode: 'edit' | 'new' }) {
         onCancel={() => setConflict(null)}
         onReload={() => {
           setConflict(null);
-          void refetch();
+          void refetch().then(result => {
+            const newest = result.data; if (!newest) return;
+            initialized.current = newest.id; originalMarkdown.current = newest.contentMd ?? '';
+            const split = splitFrontmatter(newest.contentMd ?? ''); setTitle(newest.title); setFrontmatter(split.front); setContent(split.body);
+            setBaseVersionNo(newest.versionNo ?? 0); setSourceMode(false); setSourceRevision(value => value + 1);
+          });
         }}
         onOverwrite={() => {
           setConflict(null);

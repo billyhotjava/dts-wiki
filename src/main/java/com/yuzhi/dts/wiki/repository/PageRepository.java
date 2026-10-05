@@ -18,6 +18,14 @@ import org.springframework.stereotype.Repository;
 @Repository
 public interface PageRepository extends PageRepositoryWithBagRelationships, JpaRepository<Page, Long>, JpaSpecificationExecutor<Page> {
     List<Page> findBySpaceId(Long spaceId);
+
+    // DTS-WIKI: customized: apply trash visibility in SQL, before pagination.
+    @Query("select page from Page page where page.space.id = :spaceId and page.deletedAt is not null order by page.deletedAt desc, page.id desc")
+    List<Page> findDeletedBySpace(@Param("spaceId") Long spaceId);
+
+    @Query(value = "select page from Page page left join fetch page.space left join fetch page.parent where page.space.id = :spaceId and page.deletedAt is not null order by page.deletedAt desc, page.id desc",
+        countQuery = "select count(page) from Page page where page.space.id = :spaceId and page.deletedAt is not null")
+    org.springframework.data.domain.Page<Page> findDeletedBySpace(@Param("spaceId") Long spaceId, Pageable pageable);
     default Optional<Page> findOneWithEagerRelationships(Long id) {
         return this.fetchBagRelationships(this.findOneWithToOneRelationships(id));
     }

@@ -67,6 +67,7 @@ public class PageService {
     private final com.yuzhi.dts.wiki.config.WikiProperties properties;
     private final WikiActivityService activity;
     private final WikiNotificationIntents notifications;
+    private final WikiEditingService editing;
 
     public PageService(
         PageRepository pageRepository,
@@ -85,7 +86,8 @@ public class PageService {
         PageWritePolicy writePolicy,
         com.yuzhi.dts.wiki.config.WikiProperties properties,
         WikiActivityService activity,
-        WikiNotificationIntents notifications
+        WikiNotificationIntents notifications,
+        WikiEditingService editing
     ) {
         this.pageRepository = pageRepository;
         this.pageVersionRepository = pageVersionRepository;
@@ -104,6 +106,7 @@ public class PageService {
         this.properties = properties;
         this.activity = activity;
         this.notifications = notifications;
+        this.editing = editing;
     }
 
     // ------------------------------------------------------------------ read
@@ -215,11 +218,20 @@ public class PageService {
     @Transactional(readOnly = true)
     public List<Page> trash(String slug) {
         Space space = findVisibleSpace(slug);
-        return pageRepository
-            .findAll()
-            .stream()
-            .filter(p -> p.getSpace() != null && p.getSpace().getId().equals(space.getId()) && p.getDeletedAt() != null)
-            .toList();
+        return pageRepository.findDeletedBySpace(space.getId());
+    }
+
+    public record TrashItem(Long id, String title, Instant deletedAt, boolean restorable) {}
+    public record TrashResult(List<TrashItem> items, long total, int page, int size) {}
+
+    @Transactional(readOnly = true)
+    public TrashResult trashItems(String slug, int page, int size) {
+        Space space = findVisibleSpace(slug);
+        int boundedPage = Math.max(0, page), boundedSize = Math.max(1, Math.min(50, size));
+        var deleted = pageRepository.findDeletedBySpace(space.getId(), org.springframework.data.domain.PageRequest.of(boundedPage, boundedSize));
+        var items = deleted.stream().map(item -> new TrashItem(item.getId(), item.getTitle(), item.getDeletedAt(),
+            spaceAccessService.canWrite(item) && !writePolicy.gitReadOnly(item))).toList();
+        return new TrashResult(items, deleted.getTotalElements(), boundedPage, boundedSize);
     }
 
     // ----------------------------------------------------------------- write
@@ -279,6 +291,9 @@ public class PageService {
 
     @Transactional
     public PageDtos.SaveContentResult saveContent(Long id, PageDtos.SaveContentRequest request, String viaAgent) {
+        if (request.baseVersionNo()==null || request.baseVersionNo()<0 || request.contentMd()==null
+            || request.contentMd().getBytes(StandardCharsets.UTF_8).length>2_000_000) throw new IllegalArgumentException("Invalid page base version or content size");
+        if (request.title()!=null && (request.title().isBlank() || request.title().length()>200)) throw new IllegalArgumentException("Invalid page title");
         if (viaAgent != null && !viaAgent.matches("[A-Za-z0-9._-]{1,50}")) {
             throw new IllegalArgumentException("Invalid X-Wiki-Agent");
         }
@@ -294,8 +309,10 @@ public class PageService {
         if (currentNo != request.baseVersionNo()) {
             throw new PageVersionConflictException(currentNo);
         }
+        if (request.title()!=null && !request.title().equals(page.getTitle())) renameOrMove(id,new PageDtos.UpdatePageRequest(request.title(),null,null));
         String sha = sha256(request.contentMd());
         if (current != null && sha.equals(current.getContentSha256())) {
+            userRepository.findOneByLogin(SecurityUtils.getCurrentUserLogin().orElse("")).ifPresent(user -> editing.clearPublished(id,user.getId(),currentNo,request.contentMd()));
             return new PageDtos.SaveContentResult(currentNo); // I9: no new version
         }
         addVersion(page, request.contentMd(), request.message(), VersionSource.WEB, ContentService.Mode.STRICT, viaAgent);
@@ -699,6 +716,7 @@ public class PageService {
             : next == 1 ? com.yuzhi.dts.wiki.domain.enumeration.ActivityType.PAGE_CREATED : com.yuzhi.dts.wiki.domain.enumeration.ActivityType.PAGE_UPDATED,
             login, "Version " + next + (viaAgent == null ? "" : " via " + viaAgent), version.getCreatedAt());
         notifications.version(page, version, login);
+        userRepository.findOneByLogin(login).ifPresent(user -> editing.clearPublished(page.getId(),user.getId(),next-1,contentMd));
     }
 
     private void markPendingPush(Page page, OutboxOp op, Map<String, String> extra) {

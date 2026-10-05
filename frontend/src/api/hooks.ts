@@ -161,10 +161,11 @@ export function useRestorePage() {
   });
 }
 
-export function useTrash(slug: string) {
+export interface TrashItem { id: number; title: string; deletedAt: string; restorable: boolean }
+export function useTrash(slug: string, page = 0) {
   return useQuery({
-    queryKey: ['trash', slug],
-    queryFn: async () => (await api.get<number[]>(`/api/wiki/spaces/${slug}/trash`)).data,
+    queryKey: ['trash', slug, page],
+    queryFn: async () => (await api.get<{ items: TrashItem[]; total: number; page: number; size: number }>(`/api/wiki/spaces/${slug}/trash/items`, { params: { page: String(page), size: '50' } })).data,
   });
 }
 
@@ -184,7 +185,7 @@ export function useTemplates(slug?: string) {
 export function useSavePageContent() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (args: { id: number; slug: string; body: { baseVersionNo: number; contentMd: string; message?: string } }) =>
+    mutationFn: async (args: { id: number; slug: string; body: { baseVersionNo: number; contentMd: string; message?: string; title?: string } }) =>
       (await api.put<{ versionNo: number }>(`/api/wiki/pages/${args.id}/content`, args.body)).data,
     onSuccess: (_data, args) => {
       void queryClient.invalidateQueries({ queryKey: ['page', args.id] });

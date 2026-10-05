@@ -24,6 +24,7 @@ vi.mock('../src/api/client', () => ({ api: { post: async () => ({ data: null }) 
 vi.mock('../src/components/MarkdownView', () => ({ MarkdownView: () => <div>Content</div> }));
 vi.mock('../src/features/page/PropertiesPanel', () => ({ PropertiesPanel: () => null }));
 vi.mock('../src/features/edit/AttachmentsTab', () => ({ AttachmentsTab: () => null }));
+vi.mock('../src/features/edit/EditingContinuity', () => ({ EditingContinuity: () => null }));
 vi.mock('../src/features/edit/MarkdownEditor', () => ({ MarkdownEditor: () => <div>Editor</div> }));
 vi.mock('../src/features/edit/SourceEditor', () => ({ SourceEditor: () => null }));
 vi.mock('../src/features/edit/PropertiesForm', () => ({ PropertiesForm: () => null }));

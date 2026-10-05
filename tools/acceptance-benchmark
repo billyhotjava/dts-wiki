@@ -1,0 +1,86 @@
+#!/usr/bin/env python3
+"""Read-only authenticated latency acceptance; never seeds or modifies content."""
+import argparse
+import concurrent.futures
+import json
+import math
+import os
+import sys
+import threading
+import time
+import urllib.parse
+import urllib.request
+
+
+class NoRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, request, response, code, message, headers, new_url):
+        return None
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--base-url", required=True)
+    parser.add_argument("--page-id", type=int, required=True)
+    parser.add_argument("--search", required=True, help="Representative approved search term")
+    parser.add_argument("--concurrency", type=int, default=50)
+    parser.add_argument("--requests-per-worker", type=int, default=10)
+    parser.add_argument("--min-pages", type=int, default=10_000)
+    args = parser.parse_args()
+    base = urllib.parse.urlsplit(args.base_url)
+    if base.scheme not in ("http", "https") or not base.hostname or base.username or base.password or base.query or base.fragment or base.path not in ("", "/"):
+        parser.error("Use an origin URL without credentials, path, query or fragment")
+    if not (1 <= args.concurrency <= 100 and 1 <= args.requests_per_worker <= 100 and args.page_id > 0 and args.min_pages > 0):
+        parser.error("Invalid page, concurrency, request count or data size")
+    token = os.environ.get("WIKI_BENCHMARK_TOKEN", "").strip()
+    if not token or "\r" in token or "\n" in token:
+        parser.error("Set WIKI_BENCHMARK_TOKEN in external configuration")
+    origin = args.base_url.rstrip("/")
+
+    def get(path):
+        request = urllib.request.Request(origin + path, headers={"Authorization": "Bearer " + token, "Accept": "application/json"})
+        with urllib.request.build_opener(NoRedirect()).open(request, timeout=20) as response:
+            body = response.read(20_000_001)
+            if len(body) > 20_000_000:
+                raise ValueError("Response limit exceeded")
+            return json.loads(body)
+
+    try:
+        spaces = get("/api/wiki/spaces")
+        visible_pages = sum(space["pageCount"] for space in spaces)
+        if visible_pages < args.min_pages:
+            print(json.dumps({"result": "GAP", "reason": "Insufficient authorized data scale", "visiblePages": visible_pages, "requiredPages": args.min_pages}))
+            return 1
+        results = []
+        for name, path, budget in [
+            ("page", f"/api/wiki/pages/{args.page_id}", 200),
+            ("search", "/api/wiki/search?" + urllib.parse.urlencode({"q": args.search, "size": 20}), 800),
+        ]:
+            barrier = threading.Barrier(args.concurrency)
+
+            def worker():
+                barrier.wait(timeout=30)
+                durations = []
+                for _ in range(args.requests_per_worker):
+                    started = time.perf_counter()
+                    data = get(path)
+                    if (name == "page" and data.get("id") != args.page_id) or (name == "search" and not isinstance(data.get("items"), list)):
+                        raise ValueError("Unexpected API response")
+                    durations.append((time.perf_counter() - started) * 1000)
+                return durations
+
+            with concurrent.futures.ThreadPoolExecutor(max_workers=args.concurrency) as pool:
+                futures = [pool.submit(worker) for _ in range(args.concurrency)]
+                samples = sorted(value for future in futures for value in future.result())
+            p95 = samples[math.ceil(len(samples) * 0.95) - 1]
+            results.append({"endpoint": name, "samples": len(samples), "p95Ms": round(p95, 2), "budgetMs": budget, "result": "PASS" if p95 < budget else "FAIL"})
+        passed = all(row["result"] == "PASS" for row in results)
+        print(json.dumps({"result": "PASS" if passed else "FAIL", "visiblePages": visible_pages, "workers": args.concurrency, "measurements": results}, indent=2))
+        return 0 if passed else 1
+    except (OSError, ValueError, KeyError, TypeError, threading.BrokenBarrierError):
+        # Request headers and token-bearing exceptions are never printed.
+        print(json.dumps({"result": "FAIL", "reason": "Authenticated request, fixture, or response validation failed"}))
+        return 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -144,6 +144,12 @@ public class WikiSpaceResource {
         return pageService.trash(slug).stream().map(p -> p.getId()).toList();
     }
 
+    @GetMapping("/spaces/{slug}/trash/items")
+    public PageService.TrashResult trashItems(@PathVariable String slug, @RequestParam(defaultValue = "0") int page,
+        @RequestParam(defaultValue = "50") int size) {
+        return pageService.trashItems(slug, page, size);
+    }
+
     @GetMapping("/pages/{id}")
     public PageDtos.PageView page(@PathVariable Long id) {
         return pageService.getPage(id);

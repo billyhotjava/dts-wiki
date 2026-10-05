@@ -136,5 +136,19 @@
       "SYNC_CONFLICT": "同步需要处理"
     },
     "loading": "加载中"
+  },
+  "editing": {
+    "recoverable": "发现未发布的草稿",
+    "recover": "恢复草稿",
+    "discard": "丢弃草稿",
+    "presence": "{{names}} 正在编辑此页",
+    "failed": "草稿或编辑提示暂时不可用，请保留当前内容",
+    "saved": "草稿已保存（{{time}}），尚未发布",
+    "hint": "草稿每 10 秒自动保存，页面保存后才发布新版本"
+  },
+  "trash": {
+    "title": "回收站",
+    "restore": "恢复",
+    "restoreFailed": "恢复失败"
   }
 }

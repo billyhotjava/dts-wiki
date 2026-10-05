@@ -21,6 +21,8 @@ export default defineConfig({
     manifest: true, // design 10 S4.5: check-bundle-size.mjs reads dist/.vite/manifest.json
     rollupOptions: {
       output: {
+        // Keep shared dependencies out of the editor chunk's implicit dependency closure.
+        onlyExplicitManualChunks: true,
         // design 10 S4.5 chunking: react is shared everywhere; editor (Milkdown+CodeMirror)
         // loads only on edit routes. antd is intentionally NOT forced into one chunk:
         // hoisting would drag Tree/Modal/Dropdown (space pages only) into the home bundle.

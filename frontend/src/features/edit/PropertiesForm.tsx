@@ -4,6 +4,7 @@ import dayjs from 'dayjs';
 import { parseDocument, type Document } from 'yaml';
 import { useEffect, useMemo, useState } from 'react';
 import { api } from '../../api/client';
+import { splitFrontmatter } from '../../utils/frontmatter';
 
 interface SchemaProp {
   type?: string;
@@ -20,15 +21,24 @@ interface JsonSchema {
   required?: string[];
 }
 
+function rawYaml(value: string): string {
+  return splitFrontmatter(value).front ? value.replace(/^---\r?\n/, '').replace(/---\r?\n$/, '') : value;
+}
+
 // Frontmatter editing (design 10 S4.3): schema-driven antd Form + YAML source toggle.
 // YAML read/write uses the `yaml` Document API: only edited keys change, key order
 // and comments are preserved. Client pre-checks with ajv (2020-12); the server
 // re-validates and answers 422 with field errors.
 export function PropertiesForm({ initialYaml, onChange }: { initialYaml: string; onChange: (yaml: string) => void }) {
   const [yamlMode, setYamlMode] = useState(false);
-  const [yamlText, setYamlText] = useState(initialYaml);
+  const [yamlText, setYamlText] = useState(() => rawYaml(initialYaml));
   const [schema, setSchema] = useState<JsonSchema | null>(null);
   const [clientErrors, setClientErrors] = useState<string[]>([]);
+
+  useEffect(() => {
+    setYamlText(rawYaml(initialYaml));
+    setClientErrors([]);
+  }, [initialYaml]);
 
   const doc: Document | null = useMemo(() => {
     try {
@@ -58,7 +68,7 @@ export function PropertiesForm({ initialYaml, onChange }: { initialYaml: string;
 
   const emit = (next: string) => {
     setYamlText(next);
-    onChange(next);
+    onChange(next.trim() === '' ? '' : `---\n${next}${next.endsWith('\n') ? '' : '\n'}---\n`);
   };
 
   const setField = (key: string, value: unknown) => {

@@ -12,6 +12,7 @@ import type { Node, Parent, Position } from 'unist';
 //
 // Both inputs are BODIES (no frontmatter); the caller re-attaches frontmatter.
 export function minimalDiff(originalBody: string, editedBody: string): string {
+  if (originalBody === editedBody) return originalBody;
   const aBlocks = topBlocks(originalBody);
   const bBlocks = topBlocks(editedBody);
   const ops = lcsOpsBlocks(aBlocks, bBlocks);
@@ -117,12 +118,6 @@ type Op = { kind: 'equal'; a: number } | { kind: 'insert'; b: number } | { kind:
 // Render-equivalence second chance (09 最小差异): some normalizations are forced by the
 // ProseMirror document model and render identically — uneven table rows filled with empty
 // cells, list marker style. Those keep original bytes.
-function blocksEqual(a: Block, b: Block): boolean {
-  if (fingerprint(a) === fingerprint(b)) return true;
-  if (a.type === 'table' && b.type === 'table') return tableCells(a).join('\u0000') === tableCells(b).join('\u0000');
-  if (a.type === 'list' && b.type === 'list') return listItems(a).join('\u0000') === listItems(b).join('\u0000');
-  return false;
-}
 
 function cellText(cell: Node): string {
   const parts: string[] = [];
@@ -152,40 +147,41 @@ function listItems(list: Block): string[] {
   return items.map(item => cellText(item));
 }
 
-// LCS (DP) over block sequences; blocks are few hundred at most.
+// Preserve common regions first and bound the remaining quadratic work.
 function lcsOpsBlocks(a: Block[], b: Block[]): Op[] {
-  const m = a.length;
-  const n = b.length;
-  const eq: boolean[][] = Array.from({ length: m }, (_, i) => Array.from({ length: n }, (_, j) => blocksEqual(a[i], b[j])));
-  const dp: number[][] = Array.from({ length: m + 1 }, () => new Array<number>(n + 1).fill(0));
-  for (let i = m - 1; i >= 0; i--) {
-    for (let j = n - 1; j >= 0; j--) {
-      dp[i][j] = eq[i][j] ? dp[i + 1][j + 1] + 1 : Math.max(dp[i + 1][j], dp[i][j + 1]);
+  const identity = (block: Block) => ({ hash: fingerprint(block), alternate: block.type === 'table' ? tableCells(block).join('\u0000') : block.type === 'list' ? listItems(block).join('\u0000') : undefined });
+  const left = a.map(identity), right = b.map(identity);
+  const equal = (i: number, j: number) => left[i].hash === right[j].hash || a[i].type === b[j].type && left[i].alternate !== undefined && left[i].alternate === right[j].alternate;
+  let prefix = 0, suffix = 0;
+  while (prefix < a.length && prefix < b.length && equal(prefix, prefix)) prefix++;
+  while (suffix < a.length - prefix && suffix < b.length - prefix && equal(a.length - suffix - 1, b.length - suffix - 1)) suffix++;
+  const m = a.length - prefix - suffix, n = b.length - prefix - suffix;
+  const ops: Op[] = Array.from({ length: prefix }, (_, i) => ({ kind: 'equal', a: i }));
+  let i = 0, j = 0;
+  if (m * n <= 500000) {
+    const dp = Array.from({ length: m + 1 }, () => new Uint32Array(n + 1));
+    for (let x = m - 1; x >= 0; x--) for (let y = n - 1; y >= 0; y--) dp[x][y] = equal(prefix + x, prefix + y) ? dp[x + 1][y + 1] + 1 : Math.max(dp[x + 1][y], dp[x][y + 1]);
+    while (i < m && j < n) {
+      if (equal(prefix + i, prefix + j)) { ops.push({ kind: 'equal', a: prefix + i }); i++; j++; }
+      else if (dp[i + 1][j] >= dp[i][j + 1]) ops.push({ kind: 'delete', a: prefix + i++ });
+      else ops.push({ kind: 'insert', b: prefix + j++ });
+    }
+  } else {
+    // A bounded lookahead retains nearby unchanged blocks without allocating a huge matrix.
+    while (i < m && j < n) {
+      if (equal(prefix + i, prefix + j)) { ops.push({ kind: 'equal', a: prefix + i }); i++; j++; continue; }
+      let aheadA = -1, aheadB = -1;
+      for (let step = 1; step <= 32; step++) {
+        if (i + step < m && equal(prefix + i + step, prefix + j)) { aheadA = step; break; }
+        if (j + step < n && equal(prefix + i, prefix + j + step)) { aheadB = step; break; }
+      }
+      if (aheadA >= 0) for (let step = 0; step < aheadA; step++) ops.push({ kind: 'delete', a: prefix + i++ });
+      else if (aheadB >= 0) for (let step = 0; step < aheadB; step++) ops.push({ kind: 'insert', b: prefix + j++ });
+      else { ops.push({ kind: 'delete', a: prefix + i++ }); ops.push({ kind: 'insert', b: prefix + j++ }); }
     }
   }
-  const ops: Op[] = [];
-  let i = 0;
-  let j = 0;
-  while (i < m && j < n) {
-    if (eq[i][j]) {
-      ops.push({ kind: 'equal', a: i });
-      i++;
-      j++;
-    } else if (dp[i + 1][j] >= dp[i][j + 1]) {
-      ops.push({ kind: 'delete', a: i });
-      i++;
-    } else {
-      ops.push({ kind: 'insert', b: j });
-      j++;
-    }
-  }
-  while (i < m) {
-    ops.push({ kind: 'delete', a: i });
-    i++;
-  }
-  while (j < n) {
-    ops.push({ kind: 'insert', b: j });
-    j++;
-  }
+  while (i < m) ops.push({ kind: 'delete', a: prefix + i++ });
+  while (j < n) ops.push({ kind: 'insert', b: prefix + j++ });
+  for (let index = a.length - suffix; index < a.length; index++) ops.push({ kind: 'equal', a: index });
   return ops;
 }

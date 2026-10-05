@@ -38,19 +38,24 @@ function add(file) {
   if (file.endsWith('.js')) js += gzipSync(bytes).length;
   if (file.endsWith('.css')) css += gzipSync(bytes).length;
 }
-for (const entry of entries) {
-  // editor chunk (and its deps) must not count toward the reading-page budget
-  if (entry.file.includes('editor')) continue;
-  add(entry.file);
-  for (const dep of entry.imports ?? []) {
-    const chunk = manifest[dep] ?? Object.values(manifest).find(v => v.file === dep);
-    if (chunk && !chunk.file.includes('editor')) {
-      add(chunk.file);
-      for (const cssFile of chunk.css ?? []) add(cssFile);
-    }
+const visitedChunks = new Set();
+function visit(chunk) {
+  if (visitedChunks.has(chunk.file)) return;
+  visitedChunks.add(chunk.file);
+  if (chunk.file.includes('editor')) {
+    console.error('Editor is statically imported by the home entry.');
+    process.exit(1);
   }
-  for (const cssFile of entry.css ?? []) add(cssFile);
+  add(chunk.file);
+  for (const cssFile of chunk.css ?? []) add(cssFile);
+  for (const dep of chunk.imports ?? []) {
+    const imported = manifest[dep];
+    if (!imported) throw new Error(`Missing imported chunk: ${dep}`);
+    visit(imported);
+  }
 }
+// Every static import is downloaded; only dynamic routes are excluded.
+for (const entry of entries) visit(entry);
 
 console.log(`home JS gzip: ${(js / 1024).toFixed(1)} KB (budget 300 KB)`);
 console.log(`home CSS gzip: ${(css / 1024).toFixed(1)} KB (budget 60 KB)`);
