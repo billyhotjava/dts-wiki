@@ -22,8 +22,7 @@ public class DiagramArtifactService {
         var attachment = attachments.resolveRaw(pageId, path);
         if (!attachment.getFileName().endsWith(".json") || attachment.getSize() > 2_000_000) throw new IllegalArgumentException("Expected a bounded JSON diagram source");
         try (var stream = blobs.load(attachment.getSha256())) {
-            var source = json.readTree(stream.readNBytes(2_000_001));
-            if (!source.isObject()) throw new IllegalArgumentException("Diagram source must be a JSON object");
+            var source = sourceObject(stream.readNBytes(2_000_001));
             return Map.of("pageId", pageId, "path", path, "source", json.convertValue(source, Map.class));
         }
     }
@@ -31,12 +30,23 @@ public class DiagramArtifactService {
     public List<AttachmentService.AttachmentInfo> put(long pageId, String name, String spec, String html, String pngBase64) throws java.io.IOException {
         if (!name.matches("[a-zA-Z0-9][a-zA-Z0-9_-]{0,79}")) throw new IllegalArgumentException("Invalid diagram name");
         if (spec.length() > 2_000_000 || html.length() > 5_000_000 || pngBase64.length() > 14_000_000) throw new IllegalArgumentException("Diagram bundle is too large");
-        if (!json.readTree(spec).isObject()) throw new IllegalArgumentException("Diagram source must be a JSON object");
+        sourceObject(spec.getBytes(StandardCharsets.UTF_8));
         byte[] png = Base64.getDecoder().decode(pngBase64);
         byte[] signature = new byte[] { (byte) 137, 80, 78, 71, 13, 10, 26, 10 };
         if (png.length < signature.length || !java.util.Arrays.equals(signature, java.util.Arrays.copyOf(png, signature.length))) throw new IllegalArgumentException("Invalid PNG artifact");
         return List.of(attachments.uploadDiagram(pageId, name + ".archify.json", "application/json", spec.getBytes(StandardCharsets.UTF_8)),
             attachments.uploadDiagram(pageId, name + ".html", "text/html", html.getBytes(StandardCharsets.UTF_8)),
             attachments.uploadDiagram(pageId, name + ".png", "image/png", png));
+    }
+    private com.fasterxml.jackson.databind.JsonNode sourceObject(byte[] bytes) throws java.io.IOException {
+        if (bytes.length > 2_000_000) throw new IllegalArgumentException("Diagram source is too large");
+        try {
+            var source = json.reader().with(com.fasterxml.jackson.databind.DeserializationFeature.FAIL_ON_READING_DUP_TREE_KEY)
+                .with(com.fasterxml.jackson.databind.DeserializationFeature.FAIL_ON_TRAILING_TOKENS).readTree(bytes);
+            if (source == null || !source.isObject()) throw new IllegalArgumentException("Diagram source must be a JSON object");
+            return source;
+        } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
+            throw new IllegalArgumentException("Invalid diagram source JSON");
+        }
     }
 }

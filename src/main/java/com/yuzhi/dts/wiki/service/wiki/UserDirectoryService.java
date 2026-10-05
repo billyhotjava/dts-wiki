@@ -5,24 +5,24 @@ import com.yuzhi.dts.wiki.repository.UserRepository;
 import java.util.List;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 /**
  * User directory for @mention candidates (E9). Only users visible to a reader of
  * the space are returned; login and display name only, never credentials.
  */
 @Service
-@Transactional(readOnly = true)
 public class UserDirectoryService {
 
-    public record MentionCandidate(String login, String name) {}
+    public record MentionCandidate(String id, String login, String displayName) {}
 
     private final UserRepository userRepository;
     private final SpaceAccessService spaceAccessService;
+    private final CurrentIdentityService identity;
 
-    public UserDirectoryService(UserRepository userRepository, SpaceAccessService spaceAccessService) {
+    public UserDirectoryService(UserRepository userRepository, SpaceAccessService spaceAccessService, CurrentIdentityService identity) {
         this.userRepository = userRepository;
         this.spaceAccessService = spaceAccessService;
+        this.identity = identity;
     }
 
     public List<MentionCandidate> mentionCandidates(String query, String spaceSlug) {
@@ -30,8 +30,17 @@ public class UserDirectoryService {
         String authority = spaceAccessService.requiredReadAuthority(spaceSlug);
         String q = query == null ? "" : query.strip();
         if (q.length() > 100) { throw new IllegalArgumentException("Mention query is too long"); }
-        List<User> users = userRepository.findMentionCandidates(authority, q, Pageable.ofSize(20));
-        return users.stream().map(u -> new MentionCandidate(u.getLogin(), displayName(u))).toList();
+        if (q.isBlank()) return List.of();
+        List<User> users = userRepository.findMentionDisplayCandidates(q, Pageable.ofSize(20));
+        var result = new java.util.ArrayList<MentionCandidate>();
+        for (User user : users) {
+            var current = identity.lookup(user.getId());
+            if (current.enabled() && (current.authorities().contains("ROLE_ADMIN") || current.authorities().contains(authority))) {
+                result.add(new MentionCandidate(user.getId(), user.getLogin(), displayName(user)));
+                if (result.size() == 20) break;
+            }
+        }
+        return List.copyOf(result);
     }
 
     private static String displayName(User user) {

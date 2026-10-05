@@ -43,6 +43,12 @@ public class PageWatch implements Serializable {
     @NotNull
     private User user;
 
+    @Column(name = "muted", nullable = false)
+    private boolean muted;
+
+    public boolean isMuted() { return muted; }
+    public void setMuted(boolean value) { muted = value; }
+
 
     public Long getId() {
         return this.id;

@@ -19,6 +19,8 @@ vi.mock('../src/api/hooks', () => ({
   useSavePageContent: () => ({ mutateAsync: state.save }),
 }));
 vi.mock('@tanstack/react-query', () => ({ useQueryClient: () => ({ prefetchQuery: vi.fn() }) }));
+vi.mock('../src/features/collaboration/PersonalActions', () => ({ PersonalActions: () => null }));
+vi.mock('../src/api/client', () => ({ api: { post: async () => ({ data: null }) } }));
 vi.mock('../src/components/MarkdownView', () => ({ MarkdownView: () => <div>Content</div> }));
 vi.mock('../src/features/page/PropertiesPanel', () => ({ PropertiesPanel: () => null }));
 vi.mock('../src/features/edit/AttachmentsTab', () => ({ AttachmentsTab: () => null }));

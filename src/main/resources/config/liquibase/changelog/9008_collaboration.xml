@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<databaseChangeLog xmlns="http://www.liquibase.org/xml/ns/dbchangelog" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+ xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+ <changeSet id="9008-personal-pages" author="com.yuzhi">
+  <sql><![CDATA[
+   CREATE TABLE page_favorite (user_id varchar(100) NOT NULL REFERENCES jhi_user(id) ON DELETE CASCADE,
+      page_id bigint NOT NULL REFERENCES page(id) ON DELETE CASCADE, created_at timestamp with time zone NOT NULL, PRIMARY KEY(user_id, page_id));
+   CREATE TABLE page_view (user_id varchar(100) NOT NULL REFERENCES jhi_user(id) ON DELETE CASCADE,
+      page_id bigint NOT NULL REFERENCES page(id) ON DELETE CASCADE, viewed_at timestamp with time zone NOT NULL, PRIMARY KEY(user_id, page_id));
+   CREATE INDEX ix_page_view_user_time ON page_view(user_id, viewed_at DESC, page_id DESC);
+   ALTER TABLE page_watch ADD COLUMN muted boolean NOT NULL DEFAULT false;
+  ]]></sql>
+ </changeSet>
+ <changeSet id="9008-notification-intent" author="com.yuzhi">
+  <sql><![CDATA[
+   ALTER TABLE notification ADD COLUMN event_key varchar(200);
+   ALTER TABLE notification ADD COLUMN auth_state varchar(16) NOT NULL DEFAULT 'PENDING';
+   ALTER TABLE notification ADD COLUMN delivery_state varchar(16) NOT NULL DEFAULT 'PENDING';
+   ALTER TABLE notification ADD COLUMN attempts integer NOT NULL DEFAULT 0;
+   ALTER TABLE notification ADD COLUMN retry_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP;
+   ALTER TABLE notification ADD COLUMN mail_at timestamp with time zone;
+   UPDATE notification SET event_key = 'legacy:' || id;
+   ALTER TABLE notification ALTER COLUMN event_key SET NOT NULL;
+   CREATE UNIQUE INDEX ux_notification_intent ON notification(event_key, recipient_id, type);
+   CREATE INDEX ix_notification_pending ON notification(retry_at, id) WHERE auth_state = 'PENDING' OR delivery_state = 'PENDING';
+   CREATE INDEX ix_comment_page_parent_time ON comment(page_id, parent_id, created_at, id);
+  ]]></sql>
+ </changeSet>
+</databaseChangeLog>

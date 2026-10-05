@@ -98,5 +98,43 @@
     "fallback": "Static preview of the interactive diagram",
     "missing": "Diagram files are unavailable. Ask the page author to rebuild the bundle.",
     "readOnly": "This is a read-only preview. Update the source and its diagram files to change the diagram."
+  },
+  "collaboration": {
+    "favorite": "Favorite",
+    "unfavorite": "Unfavorite",
+    "watch": "Watch",
+    "unwatch": "Unwatch",
+    "myPages": "My pages",
+    "favorites": "Favorites",
+    "recent": "Recently viewed",
+    "failed": "Operation failed. Retry.",
+    "retry": "Retry",
+    "empty": "No pages yet",
+    "comments": "Comments",
+    "noComments": "No comments yet",
+    "reply": "Reply",
+    "edit": "Edit",
+    "delete": "Delete",
+    "deleteConfirm": "Delete this comment?",
+    "resolved": "Resolved",
+    "resolve": "Resolve",
+    "reopen": "Reopen",
+    "deletedComment": "This comment was deleted",
+    "replying": "Replying to a comment",
+    "cancel": "Cancel",
+    "commentPlaceholder": "Write a comment using Markdown",
+    "submit": "Post comment",
+    "mention": "@Mention",
+    "notifications": "Notifications",
+    "noNotifications": "No notifications",
+    "readAll": "Mark all read",
+    "identityUnavailable": "Current access permissions are unavailable. Retry later.",
+    "noticeTypes": {
+      "MENTION": "You were mentioned",
+      "PAGE_UPDATED": "A watched page changed",
+      "COMMENT_REPLY": "Someone replied",
+      "SYNC_CONFLICT": "Sync needs attention"
+    },
+    "loading": "Loading"
   }
 }

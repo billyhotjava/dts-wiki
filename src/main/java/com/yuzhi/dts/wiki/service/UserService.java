@@ -197,15 +197,12 @@ public class UserService {
         if (details.get("family_name") != null) {
             user.setLastName((String) details.get("family_name"));
         }
-        if (details.get("email_verified") != null) {
-            activated = (Boolean) details.get("email_verified");
-        }
         if (details.get("email") != null) {
             user.setEmail(((String) details.get("email")).toLowerCase());
         } else if (sub.contains("|") && username != null && username.contains("@")) {
             // special handling for Auth0
             user.setEmail(username);
-        } else {
+        } else if (sub.contains("@")) {
             user.setEmail(sub);
         }
         if (details.get("langKey") != null) {

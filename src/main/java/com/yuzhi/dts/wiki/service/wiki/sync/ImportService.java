@@ -205,7 +205,7 @@ public class ImportService {
             if (size > properties.getMaxSyncFileSize()) { out.get("skip").add(path); continue; }
             String lower = path.toLowerCase(Locale.ROOT);
             if (lower.endsWith(".md")) { out.get("md").add(path); }
-            else if (lower.matches(".*\\.(png|jpg|jpeg|gif|webp|svg|pdf|pptx|docx|xlsx)$")) { out.get("bin").add(path); }
+            else if (GitAttachmentImporter.isSupportedPath(path)) { out.get("bin").add(path); }
             else { out.get("skip").add(path); }
         }
         return out;

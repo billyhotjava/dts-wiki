@@ -23,6 +23,12 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 @RestControllerAdvice(basePackages = "com.yuzhi.dts.wiki.web.rest.wiki")
 @Order(Ordered.HIGHEST_PRECEDENCE)
 public class WikiExceptionHandler {
+    @ExceptionHandler(com.yuzhi.dts.wiki.service.wiki.IdentityUnavailableException.class)
+    public ProblemDetail identityUnavailable(com.yuzhi.dts.wiki.service.wiki.IdentityUnavailableException e) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.SERVICE_UNAVAILABLE, e.getMessage());
+        problem.setProperty("errorKey", "IDENTITY_UNAVAILABLE");
+        return problem;
+    }
 
     @ExceptionHandler(com.yuzhi.dts.wiki.service.wiki.GitPageReadOnlyException.class)
     public ProblemDetail gitReadOnly(com.yuzhi.dts.wiki.service.wiki.GitPageReadOnlyException e) {

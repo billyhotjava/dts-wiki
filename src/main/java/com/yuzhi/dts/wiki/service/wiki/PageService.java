@@ -66,6 +66,7 @@ public class PageService {
     private final PageWritePolicy writePolicy;
     private final com.yuzhi.dts.wiki.config.WikiProperties properties;
     private final WikiActivityService activity;
+    private final WikiNotificationIntents notifications;
 
     public PageService(
         PageRepository pageRepository,
@@ -83,7 +84,8 @@ public class PageService {
         ObjectMapper objectMapper,
         PageWritePolicy writePolicy,
         com.yuzhi.dts.wiki.config.WikiProperties properties,
-        WikiActivityService activity
+        WikiActivityService activity,
+        WikiNotificationIntents notifications
     ) {
         this.pageRepository = pageRepository;
         this.pageVersionRepository = pageVersionRepository;
@@ -101,6 +103,7 @@ public class PageService {
         this.writePolicy = writePolicy;
         this.properties = properties;
         this.activity = activity;
+        this.notifications = notifications;
     }
 
     // ------------------------------------------------------------------ read
@@ -535,6 +538,7 @@ public class PageService {
             analysis.plainText()
         );
         activity.record(page, com.yuzhi.dts.wiki.domain.enumeration.ActivityType.SYNC_IMPORTED, commitAuthorName, "Git version " + version.getVersionNo(), committedAt);
+        notifications.version(page, version, null);
         return version;
     }
 
@@ -609,7 +613,7 @@ public class PageService {
         }
         List<String> labels = page.getLabelses().stream().map(l -> l.getName()).sorted().toList();
         String login = SecurityUtils.getCurrentUserLogin().orElse(null);
-        boolean watching = login != null && pageWatchRepository.existsByPageIdAndUserLogin(page.getId(), login);
+        boolean watching = login != null && pageWatchRepository.existsByPageIdAndUserLoginAndMutedFalse(page.getId(), login);
         PageDtos.MetaView meta = pageMetaDao
             .findByPage(page.getId())
             .map(m ->
@@ -694,6 +698,7 @@ public class PageService {
         activity.record(page, source == VersionSource.RESTORE ? com.yuzhi.dts.wiki.domain.enumeration.ActivityType.PAGE_RESTORED
             : next == 1 ? com.yuzhi.dts.wiki.domain.enumeration.ActivityType.PAGE_CREATED : com.yuzhi.dts.wiki.domain.enumeration.ActivityType.PAGE_UPDATED,
             login, "Version " + next + (viaAgent == null ? "" : " via " + viaAgent), version.getCreatedAt());
+        notifications.version(page, version, login);
     }
 
     private void markPendingPush(Page page, OutboxOp op, Map<String, String> extra) {

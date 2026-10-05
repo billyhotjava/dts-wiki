@@ -96,6 +96,34 @@ class ManifestInboundIT {
         assertThat(git.runIn(developer, List.of("ls-tree", "HEAD", "--", "docs/alpha/foreign"), Map.of(), 10)).startsWith("160000 ");
     }
 
+    @Test void diagramBundleImportsFromGitAndRemainsReadOnly() throws Exception {
+        write("docs/alpha/diagram.md", "# Diagram\n\n```archify src=\"./diagrams/flow.archify.json\" height=\"560\"\n![Flow](diagrams/flow.png)\n```\n");
+        write("docs/alpha/diagrams/flow.archify.json", "{\"title\":\"Flow\"}");
+        write("docs/alpha/diagrams/flow.html", "<html><script>window.fixture=true</script></html>");
+        Files.write(developer.resolve("docs/alpha/diagrams/flow.png"), java.util.Base64.getDecoder().decode("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jXnQAAAAASUVORK5CYII="));
+        commit("diagram bundle", "2026-03-03T10:00:00Z"); scheduler.run();
+        var space = spaces.findOneBySlug("team-alpha").orElseThrow();
+        var diagram = pages.findLiveBySpace(space.getId()).stream().filter(p -> "docs/alpha/diagram.md".equals(p.getGitPath())).findFirst().orElseThrow();
+        assertThat(attachmentService.resolveRaw(diagram.getId(), "diagrams/flow.archify.json").getFileName()).isEqualTo("flow.archify.json");
+        assertThat(attachmentService.resolveRaw(diagram.getId(), "diagrams/flow.png").getMimeType()).isEqualTo("image/png");
+        mvc.perform(get("/api/wiki/pages/{id}/raw/diagrams/flow.html", diagram.getId()).with(user("reader").roles("SPACE_TEAM_READERS")))
+            .andExpect(status().isOk()).andExpect(header().string("Content-Security-Policy", org.hamcrest.Matchers.containsString("sandbox allow-scripts")));
+        mvc.perform(get("/api/wiki/pages/{id}", diagram.getId()).with(user("reader").roles("SPACE_TEAM_READERS")))
+            .andExpect(jsonPath("$.gitReadOnly").value(true));
+        mvc.perform(get("/api/wiki/pages/{id}/raw/diagrams/flow.html", diagram.getId()).with(user("outsider").roles("USER")))
+            .andExpect(status().isNotFound());
+        write("docs/alpha/diagrams/flow.archify.json", "{\"title\":\"Revised\"}");
+        commit("diagram revision", "2026-04-04T10:00:00Z"); scheduler.run();
+        mvc.perform(get("/api/wiki/pages/{id}/raw/diagrams/flow.archify.json", diagram.getId()).with(user("reader").roles("SPACE_TEAM_READERS")))
+            .andExpect(content().string(org.hamcrest.Matchers.containsString("Revised")));
+        Files.delete(developer.resolve("docs/alpha/diagrams/flow.html"));
+        commit("diagram HTML removed", "2026-05-05T10:00:00Z"); scheduler.run();
+        mvc.perform(get("/api/wiki/pages/{id}/raw/diagrams/flow.html", diagram.getId()).with(user("reader").roles("SPACE_TEAM_READERS")))
+            .andExpect(status().isNotFound());
+        mvc.perform(get("/api/wiki/pages/{id}/raw/diagrams/flow.png", diagram.getId()).with(user("reader").roles("SPACE_TEAM_READERS")))
+            .andExpect(status().isOk());
+    }
+
     private String inventory(boolean second) {
         return "version: 1\nspaces:\n  - slug: team-alpha\n    name: Team Alpha\n    role: space-team-readers\n    roots: [docs/alpha]\n"
             + (second ? "  - slug: team-beta\n    name: Team Beta\n    role: space-beta-readers\n    roots: [docs/beta]\n" : "");

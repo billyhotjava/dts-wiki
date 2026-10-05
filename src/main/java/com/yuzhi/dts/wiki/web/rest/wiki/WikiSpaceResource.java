@@ -61,7 +61,11 @@ public class WikiSpaceResource {
 
     /** Single startup call for the frontend (design 10 S3.3): account + spaces + admin flag. */
     @GetMapping("/bootstrap")
-    public BootstrapPayload bootstrap() {
+    public BootstrapPayload bootstrap(org.springframework.security.core.Authentication authentication) {
+        if (authentication instanceof org.springframework.security.oauth2.client.authentication.OAuth2AuthenticationToken
+            || authentication instanceof org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken) {
+            userService.getUserFromAuthentication((org.springframework.security.authentication.AbstractAuthenticationToken) authentication);
+        }
         String login = SecurityUtils.getCurrentUserLogin().orElse("");
         var account = userService
             .getUserWithAuthoritiesByLogin(login)

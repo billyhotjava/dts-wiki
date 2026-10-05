@@ -42,5 +42,5 @@ public interface PageWatchRepository extends JpaRepository<PageWatch, Long> {
     Optional<PageWatch> findOneWithToOneRelationships(@Param("id") Long id);
 
     // DTS-WIKI: customized (Sprint-6 W4).
-    boolean existsByPageIdAndUserLogin(Long pageId, String login);
+    boolean existsByPageIdAndUserLoginAndMutedFalse(Long pageId, String login);
 }

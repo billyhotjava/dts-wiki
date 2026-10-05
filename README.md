@@ -82,6 +82,10 @@ images; `--deploy <bundle-dir> <ssh-target>` is a separate runtime operation.
 Set `JAVA_HOME` explicitly if the JDK is installed elsewhere. Runtime configuration
 is external to source control; see `deploy/compose.yml` and
 [the operations runbook](docs/operations.md) for configuration, backup and rollback.
+See [collaboration](docs/collaboration.md) for personal navigation, comments,
+current identity checks and optional mail. [Content tools](docs/content-tools.md)
+cover Markdown formatting and safe diagram bundles; [MCP](docs/mcp.md) describes
+personal agent access.
 Source verification and runtime deployment are separate steps. The v2 instance
 uses port 18091 and must not replace the existing Wiki instance without a
 separately approved migration window.

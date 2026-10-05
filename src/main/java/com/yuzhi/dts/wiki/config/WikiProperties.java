@@ -13,6 +13,42 @@ import org.springframework.context.annotation.Configuration;
 public class WikiProperties {
 
     private final Content content = new Content();
+    private final Directory directory = new Directory();
+    private final Notifications notifications = new Notifications();
+
+    public Directory getDirectory() { return directory; }
+    public Notifications getNotifications() { return notifications; }
+
+    /** External, read-only identity API settings; recipient permissions are never cached. */
+    public static class Directory {
+        private String baseUrl = "";
+        private String realm = "";
+        private String wikiClientUuid = "";
+        private String clientId = "";
+        private String clientSecret = "";
+        public String getBaseUrl() { return baseUrl; }
+        public void setBaseUrl(String value) { baseUrl = value; }
+        public String getRealm() { return realm; }
+        public void setRealm(String value) { realm = value; }
+        public String getWikiClientUuid() { return wikiClientUuid; }
+        public void setWikiClientUuid(String value) { wikiClientUuid = value; }
+        public String getClientId() { return clientId; }
+        public void setClientId(String value) { clientId = value; }
+        public String getClientSecret() { return clientSecret; }
+        public void setClientSecret(String value) { clientSecret = value; }
+    }
+
+    public static class Notifications {
+        private boolean mailEnabled;
+        private String from = "";
+        private String publicUrl = "";
+        public boolean isMailEnabled() { return mailEnabled; }
+        public void setMailEnabled(boolean value) { mailEnabled = value; }
+        public String getFrom() { return from; }
+        public void setFrom(String value) { from = value; }
+        public String getPublicUrl() { return publicUrl; }
+        public void setPublicUrl(String value) { publicUrl = value; }
+    }
 
     /** Outbound writes require an explicit opt-in; content-managed spaces stay read-only. */
     private boolean outboundEnabled;

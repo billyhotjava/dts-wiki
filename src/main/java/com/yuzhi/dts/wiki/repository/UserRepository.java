@@ -21,6 +21,9 @@ public interface UserRepository extends JpaRepository<User, String> {
     String USERS_BY_EMAIL_CACHE = "usersByEmail";
     Optional<User> findOneByLogin(String login);
 
+    @Query("select u from User u where locate(lower(:q),lower(u.login))>0 or locate(lower(:q),lower(u.firstName))>0 or locate(lower(:q),lower(u.lastName))>0 order by u.login,u.id")
+    List<User> findMentionDisplayCandidates(@Param("q") String query, Pageable pageable);
+
     // DTS-WIKI: customized (Sprint-6 W5c): @mention candidates.
     @Query("select user from User user where lower(user.login) like lower(concat('%', :q, '%')) or lower(user.email) like lower(concat('%', :q, '%'))")
     List<User> searchByLoginOrEmail(@Param("q") String q, Pageable pageable);

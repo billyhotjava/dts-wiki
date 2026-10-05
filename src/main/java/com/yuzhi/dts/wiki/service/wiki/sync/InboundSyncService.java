@@ -401,13 +401,7 @@ public class InboundSyncService {
     }
 
     private boolean isBinarySyncable(String path) {
-        String lower = path.toLowerCase(java.util.Locale.ROOT);
-        for (String ext : List.of(".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".pdf", ".pptx", ".docx", ".xlsx")) {
-            if (lower.endsWith(ext)) {
-                return true;
-            }
-        }
-        return false;
+        return GitAttachmentImporter.isSupportedPath(path);
     }
 
     private boolean isReadme(String path) {

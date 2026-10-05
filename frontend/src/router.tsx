@@ -8,6 +8,7 @@ import { AppLayout } from './layout/AppLayout';
 
 // Route-level splitting (design 10 S4.5): heavy pages load on demand;
 // the editor (+Milkdown/CodeMirror) only loads on edit routes.
+const SavedPages = lazy(() => import('./features/collaboration/SavedPages').then(module => ({ default: module.SavedPages })));
 const PageView = lazy(() => import('./features/page/PageView').then(m => ({ default: m.PageView })));
 const PageEditorPage = lazy(() => import('./features/edit/PageEditorPage').then(m => ({ default: m.PageEditorPage })));
 const TrashPage = lazy(() => import('./features/home/TrashPage').then(m => ({ default: m.TrashPage })));
@@ -35,6 +36,7 @@ export const router = createBrowserRouter([
     ),
     children: [
       { path: '/', element: <HomePage /> },
+      { path: '/me/pages', element: <Suspended><SavedPages /></Suspended> },
       { path: '/search', element: <Suspended><SearchPage /></Suspended> },
       { path: '/p/:legacySpace/*', element: <Suspended><LegacyPage /></Suspended> },
       { path: '/s/:slug', element: <SpaceHomePage /> },

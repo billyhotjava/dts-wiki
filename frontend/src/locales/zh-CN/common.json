@@ -98,5 +98,43 @@
     "fallback": "交互图的静态预览",
     "missing": "图文件暂不可用，请联系页面作者重新生成图文件。",
     "readOnly": "图为只读预览；修改图时请更新对应的源文件与图文件。"
+  },
+  "collaboration": {
+    "favorite": "收藏",
+    "unfavorite": "取消收藏",
+    "watch": "关注",
+    "unwatch": "取消关注",
+    "myPages": "我的页面",
+    "favorites": "收藏页面",
+    "recent": "最近访问",
+    "failed": "操作失败，请重试",
+    "retry": "重试",
+    "empty": "暂无页面",
+    "comments": "评论",
+    "noComments": "暂无评论",
+    "reply": "回复",
+    "edit": "编辑",
+    "delete": "删除",
+    "deleteConfirm": "删除这条评论？",
+    "resolved": "已解决",
+    "resolve": "标记解决",
+    "reopen": "重新打开",
+    "deletedComment": "这条评论已删除",
+    "replying": "正在回复评论",
+    "cancel": "取消",
+    "commentPlaceholder": "写下评论，支持 Markdown",
+    "submit": "发表评论",
+    "mention": "@提及",
+    "notifications": "通知",
+    "noNotifications": "暂无通知",
+    "readAll": "全部标记已读",
+    "identityUnavailable": "暂时无法确认当前访问权限，请稍后重试",
+    "noticeTypes": {
+      "MENTION": "有人提及你",
+      "PAGE_UPDATED": "关注页面有更新",
+      "COMMENT_REPLY": "有人回复你",
+      "SYNC_CONFLICT": "同步需要处理"
+    },
+    "loading": "加载中"
   }
 }

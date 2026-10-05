@@ -116,6 +116,16 @@ class UserServiceIT {
         assertThat(userDTO.getLogin()).isEqualTo("test");
     }
 
+    @Test void uuidSubjectWithoutEmailIsAValidActiveIdentityProjection() {
+        userDetails.put("sub", "00000000-0000-0000-0000-000000000123");
+        userDetails.put("preferred_username", "wiki-person");
+        userDetails.remove("email"); userDetails.put("email_verified", false);
+        var userDTO = userService.getUserFromAuthentication(createMockOAuth2AuthenticationToken(userDetails));
+        userRepository.flush();
+        assertThat(userDTO.getEmail()).isNull(); assertThat(userDTO.isActivated()).isTrue();
+        assertThat(userRepository.findOneByLogin("wiki-person")).isPresent();
+    }
+
     @Test
     @Transactional
     void testUserDetailsWithLangKey() {

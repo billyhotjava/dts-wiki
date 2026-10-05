@@ -14,6 +14,16 @@ import org.springframework.stereotype.Repository;
  */
 @Repository
 public interface CommentRepository extends JpaRepository<Comment, Long> {
+    @Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
+    @Query("select c from Comment c where c.id=:id")
+    Optional<Comment> findForUpdate(@Param("id") long id);
+
+    long countByParentId(Long id);
+    @Query("select c from Comment c where c.page.id=:page and c.parent is null and (c.deletedAt is null or exists(select r.id from Comment r where r.parent=c and r.deletedAt is null)) order by c.createdAt,c.id")
+    Page<Comment> findThreads(@Param("page") long page, Pageable pageable);
+
+    @Query("select c from Comment c join fetch c.author where c.parent.id=:parent and c.deletedAt is null order by c.createdAt,c.id")
+    List<Comment> findReplies(@Param("parent") long parent);
     @Query("select comment from Comment comment where comment.author.login = ?#{authentication.name}")
     List<Comment> findByAuthorIsCurrentUser();
 

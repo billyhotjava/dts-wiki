@@ -1,5 +1,9 @@
 import { Breadcrumb, Button, Card, Col, Dropdown, Row, Space, Tag, Typography, message, Modal, Tabs } from 'antd';
 import { EllipsisOutlined, FileTextOutlined, FolderOutlined } from '@ant-design/icons';
+import { lazy, Suspense, useEffect } from 'react';
+import { api } from '../../api/client';
+import { PersonalActions } from '../collaboration/PersonalActions';
+const CommentsTab = lazy(() => import('../collaboration/CommentsTab').then(module => ({ default: module.CommentsTab })));
 import { Link, useNavigate, useParams } from 'react-router';
 import { useDeletePage, usePage, useTree } from '../../api/hooks';
 import { AsyncState } from '../../components/AsyncState';
@@ -19,6 +23,7 @@ export function PageView() {
   const { data, isLoading, isError, refetch } = usePage(id);
   const { data: tree } = useTree(slug);
   const deletePage = useDeletePage();
+  useEffect(() => { if (data?.id === id) void api.post(`/api/wiki/pages/${id}/view`).catch(() => undefined); }, [data?.id, id]);
 
   const doDelete = () => {
     if (data === undefined) return;
@@ -74,6 +79,7 @@ export function PageView() {
               <Button icon={<EllipsisOutlined />} />
             </Dropdown>}
             <Button onClick={() => navigate(`/s/${slug}/trash`)}>回收站</Button>
+            <PersonalActions pageId={data.id} />
           </Space>
           <Tabs
             style={{ marginTop: 8 }}
@@ -89,6 +95,7 @@ export function PageView() {
                   ),
               },
               { key: 'attachments', label: '附件', children: <AttachmentsTab pageId={data.id} readOnly={data.gitReadOnly || !data.editable} /> },
+              { key: 'comments', label: t('collaboration.comments'), children: <Suspense><CommentsTab key={data.id} pageId={data.id} spaceSlug={slug} /></Suspense> },
               { key: 'history', label: '历史', children: <HistoryTab page={data} /> },
             ]}
           />

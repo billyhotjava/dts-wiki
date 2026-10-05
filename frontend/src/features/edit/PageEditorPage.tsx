@@ -227,7 +227,7 @@ export function PageEditorPage({ mode }: { mode: 'edit' | 'new' }) {
                       value={initial}
                       onChange={handleEditorChange}
                       onUploadImage={handleUpload}
-                      pageId={effectiveId}
+                      pageId={effectiveId ?? undefined}
                     />
                   )}
                 </>
