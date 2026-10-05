@@ -4,6 +4,8 @@ import { Link, useNavigate, useParams } from 'react-router';
 import { useDeletePage, usePage, useTree } from '../../api/hooks';
 import { AsyncState } from '../../components/AsyncState';
 import { MarkdownView } from '../../components/MarkdownView';
+import { useTranslation } from 'react-i18next';
+import { AttachmentsTab } from '../edit/AttachmentsTab';
 import { PropertiesPanel } from './PropertiesPanel';
 
 // Page reading view (design 05 S3/S4 + 10 S4.6): breadcrumb, meta, tabs, ⋯ menu.
@@ -12,6 +14,7 @@ export function PageView() {
   const { slug = '', pageId = '' } = useParams();
   const id = Number(pageId);
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const { data, isLoading, isError, refetch } = usePage(id);
   const { data: tree } = useTree(slug);
   const deletePage = useDeletePage();
@@ -20,7 +23,7 @@ export function PageView() {
     if (data === undefined) return;
     Modal.confirm({
       title: `删除「${data.title}」？`,
-      content: '页面进入回收站；GIT 页将在仓库中删除对应文件。',
+      content: '页面进入回收站。',
       okType: 'danger',
       onOk: () =>
         deletePage
@@ -49,16 +52,17 @@ export function PageView() {
             <Typography.Title level={3} style={{ margin: 0 }}>
               {data.title}
             </Typography.Title>
+            {data.gitReadOnly && <Tag>{t('page.gitReadOnly')}</Tag>}
             {data.syncStatus === 'PENDING_PUSH' && <Tag color="blue">同步中</Tag>}
             {data.syncStatus === 'CONFLICT' && <Tag color="red">冲突</Tag>}
             {data.versionNo !== null && <span>版本 {data.versionNo}</span>}
           </Space>
           <PropertiesPanel page={data} />
           <Space style={{ marginTop: 8 }}>
-            <Button type="primary" disabled={!data.editable} onClick={() => navigate(`/s/${slug}/p/${data.id}/edit`)}>
+            {!data.gitReadOnly && <Button type="primary" disabled={!data.editable} onClick={() => navigate(`/s/${slug}/p/${data.id}/edit`)}>
               编辑
-            </Button>
-            <Dropdown
+            </Button>}
+            {!data.gitReadOnly && <Dropdown
               menu={{
                 items: [{ key: 'delete', label: '删除', danger: true, disabled: !data.editable }],
                 onClick: ({ key }) => {
@@ -67,7 +71,7 @@ export function PageView() {
               }}
             >
               <Button icon={<EllipsisOutlined />} />
-            </Dropdown>
+            </Dropdown>}
             <Button onClick={() => navigate(`/s/${slug}/trash`)}>回收站</Button>
           </Space>
           <Tabs
@@ -83,7 +87,7 @@ export function PageView() {
                     <MarkdownView content={data.contentMd} pageId={data.id} spaceSlug={slug} />
                   ),
               },
-              { key: 'attachments', label: '附件', children: <Typography.Text type="secondary">附件随 W4 后续任务到来</Typography.Text> },
+              { key: 'attachments', label: '附件', children: <AttachmentsTab pageId={data.id} readOnly={data.gitReadOnly || !data.editable} /> },
               { key: 'history', label: '历史', children: <Typography.Text type="secondary">历史随 W6 到来</Typography.Text> },
             ]}
           />

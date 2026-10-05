@@ -7,6 +7,7 @@ export interface TreeNode {
   kind: string;
   hasChildren: boolean;
   syncStatus: string;
+  readOnly: boolean;
   children: TreeNode[];
 }
 
@@ -59,6 +60,7 @@ export interface PageView {
   labels: string[];
   watching: boolean;
   editable: boolean;
+  gitReadOnly: boolean;
   meta: PageMeta | null;
   url: string;
 }
@@ -100,6 +102,7 @@ export function useTree(slug: string) {
 export function usePage(id: number) {
   return useQuery({
     queryKey: ['page', id],
+    enabled: Number.isInteger(id) && id > 0,
     queryFn: async () => (await api.get<PageView>(`/api/wiki/pages/${id}`)).data,
     staleTime: 30_000,
     placeholderData: keepPreviousData,

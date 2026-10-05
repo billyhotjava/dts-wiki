@@ -1,4 +1,5 @@
 import { Alert, Button, Input, Segmented, Select, Space, Spin, Tabs, Typography, message } from 'antd';
+import { useTranslation } from 'react-i18next';
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router';
 import { uploadAttachment, useCreatePage, usePage, useSavePageContent, useTemplates, type PageView } from '../../api/hooks';
@@ -22,6 +23,7 @@ export function PageEditorPage({ mode }: { mode: 'edit' | 'new' }) {
   const { slug = '', pageId = '' } = useParams();
   const [search] = useSearchParams();
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const id = mode === 'edit' ? Number(pageId) : null;
 
   const { data: page, isLoading, isError, refetch } = usePage(id ?? 0);
@@ -103,6 +105,7 @@ export function PageEditorPage({ mode }: { mode: 'edit' | 'new' }) {
   };
 
   const doSave = async (force = false) => {
+    if (mode === 'edit' && (!page?.editable || page.gitReadOnly)) return;
     const body = composeSaveBody();
     try {
       if (effectiveId === null) {
@@ -130,6 +133,7 @@ export function PageEditorPage({ mode }: { mode: 'edit' | 'new' }) {
   };
 
   useEffect(() => {
+    if (mode === 'edit' && (!page?.editable || page.gitReadOnly)) return;
     const onKey = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key === 's') {
         e.preventDefault();
@@ -155,6 +159,7 @@ export function PageEditorPage({ mode }: { mode: 'edit' | 'new' }) {
   };
 
   const handleUpload = async (file: File): Promise<string> => {
+    if (mode === 'edit' && (!page?.editable || page.gitReadOnly)) throw new Error('Page is read-only');
     let pid = effectiveId;
     if (pid === null) {
       // uploads need a page: auto-create the (still empty) page first
@@ -171,6 +176,10 @@ export function PageEditorPage({ mode }: { mode: 'edit' | 'new' }) {
       return <AsyncState loading={false} error={new Error('load failed')} empty={false} onRetry={() => void refetch()} children={null} />;
     }
     return <Spin fullscreen tip="Loading" />;
+  }
+
+  if (mode === 'edit' && page && (page.gitReadOnly || !page.editable)) {
+    return <Alert type="info" showIcon message={page.gitReadOnly ? t('page.gitReadOnly') : t('page.cannotEdit')} description={page.gitReadOnly ? t('page.gitReadOnlyHint') : undefined} action={<Button onClick={() => navigate(`/s/${slug}/p/${page.id}`, { replace: true })}>{t('page.returnToPage')}</Button>} />;
   }
 
   const templateBody = mode === 'new' && templateId ? splitFrontmatter(templates?.find(t => t.id === templateId)?.contentMd ?? '').body : null;

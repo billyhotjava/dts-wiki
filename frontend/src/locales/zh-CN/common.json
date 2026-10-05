@@ -3,5 +3,11 @@
     "welcome": "欢迎使用 DTS Wiki",
     "hello": "你好，{{name}}",
     "spacesHint": "你有权限的产品空间将显示在这里"
+  },
+  "page": {
+    "gitReadOnly": "来自 Git · 只读",
+    "gitReadOnlyHint": "请在源仓库中修改此页面。",
+    "cannotEdit": "你没有此页面的编辑权限。",
+    "returnToPage": "返回页面"
   }
 }

@@ -6,11 +6,12 @@ import { useAttachments } from '../../api/hooks';
 import { AsyncState } from '../../components/AsyncState';
 
 // Attachments tab for the edit page (F3/T08): list, upload, copy-markdown.
-export function AttachmentsTab({ pageId }: { pageId: number | null }) {
+export function AttachmentsTab({ pageId, readOnly = false }: { pageId: number | null; readOnly?: boolean }) {
   const { data, isLoading, isError, refetch } = useAttachments(pageId);
   const [uploading, setUploading] = useState(false);
 
   const upload = async (file: File): Promise<void> => {
+    if (readOnly) return;
     if (pageId === null) {
       void message.warning('先保存页面再上传附件');
       return;
@@ -29,8 +30,8 @@ export function AttachmentsTab({ pageId }: { pageId: number | null }) {
   };
 
   return (
-    <AsyncState loading={isLoading} error={isError ? new Error('load failed') : null} empty={(data?.length ?? 0) === 0} onRetry={() => void refetch()}>
-      <Upload
+    <>
+      {!readOnly && <Upload
         beforeUpload={file => {
           void upload(file);
           return false;
@@ -41,7 +42,8 @@ export function AttachmentsTab({ pageId }: { pageId: number | null }) {
         <Button icon={<UploadOutlined />} loading={uploading} disabled={pageId === null}>
           上传附件
         </Button>
-      </Upload>
+      </Upload>}
+      <AsyncState loading={isLoading} error={isError ? new Error('load failed') : null} empty={(data?.length ?? 0) === 0} onRetry={() => void refetch()}>
       <List
         style={{ marginTop: 8 }}
         dataSource={data ?? []}
@@ -69,6 +71,7 @@ export function AttachmentsTab({ pageId }: { pageId: number | null }) {
           </List.Item>
         )}
       />
-    </AsyncState>
+      </AsyncState>
+    </>
   );
 }

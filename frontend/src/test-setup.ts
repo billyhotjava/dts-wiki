@@ -15,3 +15,12 @@ if (typeof window !== 'undefined' && window.IntersectionObserver === undefined) 
   (window as unknown as { IntersectionObserver: unknown }).IntersectionObserver = NoopIntersectionObserver;
   (globalThis as unknown as { IntersectionObserver: unknown }).IntersectionObserver = NoopIntersectionObserver;
 }
+
+// Layout APIs are supplied by real browsers; component tests do not measure geometry.
+if (globalThis.ResizeObserver === undefined) {
+  (globalThis as unknown as { ResizeObserver: unknown }).ResizeObserver = NoopIntersectionObserver;
+}
+if (window.matchMedia === undefined) {
+  window.matchMedia = query => ({ matches: false, media: query, onchange: null,
+    addListener() {}, removeListener() {}, addEventListener() {}, removeEventListener() {}, dispatchEvent: () => false });
+}

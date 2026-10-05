@@ -1,5 +1,7 @@
 import { Dropdown, Tree, message, Modal, Input } from 'antd';
 import type { DataNode } from 'antd/es/tree';
+import { LockOutlined } from '@ant-design/icons';
+import { useTranslation } from 'react-i18next';
 import { useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router';
 import { useQueryClient } from '@tanstack/react-query';
@@ -26,9 +28,23 @@ function findNode(nodes: TreeNode[], id: number): TreeNode | undefined {
 }
 
 // Space page tree (design 05 S3): virtual scroll, drag-to-move, right-click menu.
+function hasReadOnlyContent(node: TreeNode): boolean {
+  return node.readOnly || node.children.some(hasReadOnlyContent);
+}
+
+function parentIdOf(nodes: TreeNode[], id: number, parentId?: number): number | undefined {
+  for (const node of nodes) {
+    if (node.id === id) return parentId;
+    const parent = parentIdOf(node.children, id, node.id);
+    if (parent !== undefined) return parent;
+  }
+  return undefined;
+}
+
 export function PageTree() {
   const { slug = '', pageId } = useParams();
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const queryClient = useQueryClient();
   const selectedId = pageId === undefined ? undefined : Number(pageId);
   const { data, isLoading, isError, refetch } = useTree(slug);
@@ -49,6 +65,7 @@ export function PageTree() {
   };
 
   const openModal = (mode: 'rename' | 'create' | 'copy', node: TreeNode) => {
+    if (node.readOnly || (mode !== 'create' && hasReadOnlyContent(node))) return;
     setInput(mode === 'rename' ? node.title : '');
     setModal({ mode, node });
   };
@@ -62,7 +79,7 @@ export function PageTree() {
         const created = await createPage.mutateAsync({ parentId: modal.node.id, title: input.trim() });
         navigate(`/s/${slug}/p/${created.id}`);
       } else {
-        await copyPage.mutateAsync({ id: modal.node.id, slug, body: { targetParentId: modal.node.id, title: input.trim() } });
+        await copyPage.mutateAsync({ id: modal.node.id, slug, body: { targetParentId: parentIdOf(data ?? [], modal.node.id)!, title: input.trim() } });
       }
       setModal(null);
     } catch {
@@ -73,7 +90,7 @@ export function PageTree() {
   const doDelete = (node: TreeNode) => {
     Modal.confirm({
       title: `删除「${node.title}」？`,
-      content: '页面进入回收站，子树一并删除；GIT 页将在仓库中删除对应文件。',
+      content: '页面及其子页面进入回收站。',
       okType: 'danger',
       onOk: () =>
         deletePage
@@ -91,7 +108,16 @@ export function PageTree() {
         <Tree
           virtual
           height={600}
-          draggable
+          draggable={{ icon: false, nodeDraggable: node => {
+            const full = findNode(data ?? [], Number(node.key));
+            return full !== undefined && !hasReadOnlyContent(full);
+          } }}
+          allowDrop={({ dragNode, dropNode, dropPosition }) => {
+            const drag = findNode(data ?? [], Number(dragNode.key));
+            const drop = findNode(data ?? [], Number(dropNode.key));
+            return dropPosition === 0 && drag !== undefined && drop !== undefined
+              && !hasReadOnlyContent(drag) && !drop.readOnly && findNode([drag], drop.id) === undefined;
+          }}
           blockNode
           showLine={false}
           selectedKeys={selectedId === undefined ? [] : [selectedId]}
@@ -103,6 +129,9 @@ export function PageTree() {
             const dropId = Number(info.node.key);
             const dragId = Number(info.dragNode.key);
             if (Number.isNaN(dropId) || Number.isNaN(dragId)) return;
+            const drag = findNode(data ?? [], dragId);
+            const drop = findNode(data ?? [], dropId);
+            if (!drag || !drop || hasReadOnlyContent(drag) || drop.readOnly) return;
             // drop onto node => new parent; drop between => keep parent (position only, W4 keeps order)
             const newParentId = info.dropToGap ? undefined : dropId;
             if (newParentId === undefined) return;
@@ -116,14 +145,15 @@ export function PageTree() {
             const full = findNode(data ?? [], id);
             const label = full?.title ?? '';
             if (full === undefined) return <span>{label}</span>;
+            if (full.readOnly) return <span onMouseEnter={() => prefetch(id)} title={t('page.gitReadOnly')}><LockOutlined /> {label}</span>;
+            const mutable = !hasReadOnlyContent(full);
+            const copyParent = parentIdOf(data ?? [], full.id);
             return (
               <Dropdown
                 menu={{
                   items: [
                     { key: 'create', label: '新建子页' },
-                    { key: 'rename', label: '改名' },
-                    { key: 'copy', label: '复制到本页下' },
-                    { key: 'delete', label: '删除', danger: true },
+                    ...(mutable ? [{ key: 'rename', label: '改名' }, ...(copyParent !== undefined ? [{ key: 'copy', label: '复制' }] : []), { key: 'delete', label: '删除', danger: true }] : []),
                   ],
                   onClick: ({ key, domEvent }) => {
                     domEvent.stopPropagation();
