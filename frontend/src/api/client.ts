@@ -17,7 +17,7 @@ function toLogin(): never {
   throw { response: { status: 401, data: null } } as ApiError;
 }
 
-async function request<T>(method: string, url: string, body?: unknown, params?: Record<string, string>): Promise<{ data: T }> {
+async function request<T>(method: string, url: string, body?: unknown, params?: Record<string, string>): Promise<{ data: T; headers: Headers }> {
   let full = url;
   if (params !== undefined) {
     const query = new URLSearchParams(params).toString();
@@ -46,7 +46,7 @@ async function request<T>(method: string, url: string, body?: unknown, params?: 
   if (!response.ok) {
     throw { response: { status: response.status, data } } as ApiError;
   }
-  return { data: data as T };
+  return { data: data as T, headers: response.headers };
 }
 
 export const api = {

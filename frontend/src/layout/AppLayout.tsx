@@ -1,7 +1,8 @@
-import { Layout, Select, Spin } from 'antd';
+import { Button, Layout, Select, Spin } from 'antd';
 import { Suspense, lazy } from 'react';
 import { Outlet, useNavigate, useParams } from 'react-router';
 import { useAuth } from '../auth/AuthProvider';
+import { useTranslation } from 'react-i18next';
 
 const { Header, Sider, Content } = Layout;
 
@@ -14,6 +15,7 @@ export function AppLayout() {
   const { account, spaces } = useAuth();
   const { slug } = useParams();
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const displayName = account ? `${account.firstName ?? ''}${account.lastName ?? ''}`.trim() || account.login : '';
 
   return (
@@ -30,6 +32,7 @@ export function AppLayout() {
           options={(spaces ?? []).map(s => ({ value: s.slug, label: s.name }))}
           onChange={value => navigate(`/s/${value}`)}
         />
+        {slug && <Button onClick={() => navigate(`/s/${slug}/board`)}>{t('board.title')}</Button>}
         <span style={{ marginLeft: 'auto' }}>{displayName}</span>
       </Header>
       <Layout>

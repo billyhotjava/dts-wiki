@@ -9,5 +9,23 @@
     "gitReadOnlyHint": "Edit this page in its source repository.",
     "cannotEdit": "You do not have permission to edit this page.",
     "returnToPage": "Return to page"
+  },
+  "board": {
+    "title": "Sprint board",
+    "sprint": "Sprint",
+    "feature": "Feature",
+    "owner": "Owner",
+    "priority": "Priority",
+    "status": "Status",
+    "clear": "Clear filters",
+    "count": "{{count}} items on this page, {{total}} total",
+    "invalid": "Invalid metadata"
+  },
+  "status": {
+    "DRAFT": "Draft",
+    "READY": "Ready",
+    "IN_PROGRESS": "In progress",
+    "BLOCKED": "Blocked",
+    "DONE": "Done"
   }
 }

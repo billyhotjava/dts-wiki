@@ -216,3 +216,30 @@ export async function uploadAttachment(pageId: number, file: File): Promise<stri
   const { data } = await api.post<{ markdown: string }>(`/api/wiki/pages/${pageId}/attachments`, form);
   return data.markdown;
 }
+
+export interface QueryItem {
+  pageId: number;
+  docId: string | null;
+  type: string;
+  status: string | null;
+  title: string;
+  owner: string | null;
+  priority: string | null;
+  sprint: string | null;
+  feature: string | null;
+  url: string;
+  gitPath: string | null;
+  valid: boolean;
+  updatedAt: string;
+}
+
+export function useContentQuery(params: Record<string, string>) {
+  return useQuery({
+    queryKey: ['content-query', params],
+    enabled: Boolean(params.space),
+    queryFn: async () => {
+      const response = await api.get<QueryItem[]>('/api/wiki/query', { params });
+      return { items: response.data, total: Number(response.headers.get('X-Total-Count') ?? '0') };
+    },
+  });
+}

@@ -9,5 +9,23 @@
     "gitReadOnlyHint": "请在源仓库中修改此页面。",
     "cannotEdit": "你没有此页面的编辑权限。",
     "returnToPage": "返回页面"
+  },
+  "board": {
+    "title": "迭代看板",
+    "sprint": "迭代",
+    "feature": "功能",
+    "owner": "负责人",
+    "priority": "优先级",
+    "status": "状态",
+    "clear": "清除筛选",
+    "count": "当前页 {{count}} 项，共 {{total}} 项",
+    "invalid": "属性待修正"
+  },
+  "status": {
+    "DRAFT": "草稿",
+    "READY": "待开始",
+    "IN_PROGRESS": "进行中",
+    "BLOCKED": "受阻",
+    "DONE": "已完成"
   }
 }
