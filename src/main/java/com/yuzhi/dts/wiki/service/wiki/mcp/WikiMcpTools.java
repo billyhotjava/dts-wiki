@@ -32,7 +32,7 @@ public class WikiMcpTools {
         this.pages = pages; this.query = query; this.search = search; this.diagrams = diagrams; this.metadata = metadata; this.json = json;
         var text = Map.<String, Object>of("type", "string", "maxLength", 300);
         var positive = Map.<String, Object>of("type", "integer", "minimum", 1, "maximum", Long.MAX_VALUE);
-        var markdown = Map.<String, Object>of("type", "string", "maxLength", 10_000_000);
+        var markdown = Map.<String, Object>of("type", "string", "maxLength", 2_000_000);
         add("wiki_search", "Search current authorized knowledge and attachment names.", Map.of("query", text, "space", text, "type", text, "limit", Map.of("type", "integer", "minimum", 1, "maximum", 200)), List.of("query"), true);
         add("wiki_get_page", "Read Markdown, its current version and metadata by page ID or space/path.", Map.of("pageId", positive, "space", text, "path", text), List.of(), true);
         add("wiki_list_tree", "List an authorized subtree with metadata; bounded to 2000 nodes.", Map.of("space", text, "path", text, "depth", Map.of("type", "integer", "minimum", 1, "maximum", 20)), List.of("space"), true);

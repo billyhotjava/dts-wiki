@@ -257,6 +257,12 @@ public class PageService {
         if (kind == PageKind.GIT && (!properties.isOutboundEnabled() || space.isManifestManaged())) {
             throw new GitPageReadOnlyException();
         }
+        validateTitle(request.title());
+        if (viaAgent != null && !viaAgent.matches("[A-Za-z0-9._-]{1,50}")) throw new IllegalArgumentException("Invalid X-Wiki-Agent");
+        String initialContent = request.contentMd() != null ? request.contentMd() : templateService.resolve(slug, request.templateId());
+        if (initialContent != null && initialContent.getBytes(StandardCharsets.UTF_8).length > 2_000_000) {
+            throw new IllegalArgumentException("Page content exceeds 2 MB UTF-8");
+        }
         Page page = new Page();
         page.setSpace(space);
         page.setParent(parent);
@@ -270,7 +276,6 @@ public class PageService {
             page.setGitPath(gitPathFor(parent, space, request.title()));
         }
         page = pageRepository.save(page);
-        String initialContent = request.contentMd() != null ? request.contentMd() : templateService.resolve(slug, request.templateId());
         if (initialContent != null) {
             addVersion(page, initialContent, message, VersionSource.WEB, ContentService.Mode.STRICT, viaAgent);
         } else {
@@ -293,7 +298,7 @@ public class PageService {
     public PageDtos.SaveContentResult saveContent(Long id, PageDtos.SaveContentRequest request, String viaAgent) {
         if (request.baseVersionNo()==null || request.baseVersionNo()<0 || request.contentMd()==null
             || request.contentMd().getBytes(StandardCharsets.UTF_8).length>2_000_000) throw new IllegalArgumentException("Invalid page base version or content size");
-        if (request.title()!=null && (request.title().isBlank() || request.title().length()>200)) throw new IllegalArgumentException("Invalid page title");
+        if (request.title() != null) validateTitle(request.title());
         if (viaAgent != null && !viaAgent.matches("[A-Za-z0-9._-]{1,50}")) {
             throw new IllegalArgumentException("Invalid X-Wiki-Agent");
         }
@@ -333,6 +338,7 @@ public class PageService {
         writePolicy.requireWritable(page);
         writePolicy.requireWritableSubtree(page);
         if (request.title() != null && !request.title().isBlank()) {
+            validateTitle(request.title());
             page.setTitle(request.title());
         }
         if (request.parentId() != null) {
@@ -380,8 +386,14 @@ public class PageService {
         }
         writePolicy.requireWritable(targetParent);
         if (isDescendantOrSelf(targetParent, source)) { throw new IllegalArgumentException("Cannot copy into the source subtree"); }
-        Page copy = deepCopy(source, targetParent, request.title() != null ? request.title() : source.getTitle() + " (copy)");
+        String title = request.title() != null ? request.title() : source.getTitle().substring(0, Math.min(193, source.getTitle().length())) + " (copy)";
+        validateTitle(title);
+        Page copy = deepCopy(source, targetParent, title);
         return toView(copy);
+    }
+
+    private static void validateTitle(String title) {
+        if (title == null || title.isBlank() || title.length() > 200) throw new IllegalArgumentException("Invalid page title");
     }
 
     private Page deepCopy(Page source, Page targetParent, String title) {

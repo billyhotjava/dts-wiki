@@ -94,4 +94,21 @@ class WikiEditingIT {
         mvc.perform(get("/api/wiki/pages/{id}/draft",page).with(alice())).andExpect(status().isNoContent());
         assertThat(pageRepository.findById(page).orElseThrow().getCurrentVersion().getVersionNo()).isEqualTo(1);
     }
+
+    @Test void nativeCreationAndTitleMutationRejectOversizeBeforeDatabaseWrites() throws Exception {
+        long parent=pageRepository.findById(page).orElseThrow().getParent().getId();
+        long before=pageRepository.count();
+        String title="a".repeat(201);
+        mvc.perform(post("/api/wiki/spaces/edit-team/pages").with(alice()).with(csrf()).contentType("application/json")
+            .content("{\"parentId\":"+parent+",\"title\":\"Too large\",\"contentMd\":\""+"界".repeat(666667)+"\"}"))
+            .andExpect(status().isBadRequest());
+        mvc.perform(post("/api/wiki/spaces/edit-team/pages").with(alice()).with(csrf()).contentType("application/json")
+            .content("{\"parentId\":"+parent+",\"title\":\""+title+"\"}"))
+            .andExpect(status().isBadRequest());
+        mvc.perform(put("/api/wiki/pages/{id}",page).with(alice()).with(csrf()).contentType("application/json").content("{\"title\":\""+title+"\"}"))
+            .andExpect(status().isBadRequest());
+        assertThat(pageRepository.count()).isEqualTo(before);
+        long longTitle=pages.createPage("edit-team",new PageDtos.CreatePageRequest(parent,"a".repeat(200),"NATIVE",null)).id();
+        assertThat(pages.copyPage(longTitle,new PageDtos.CopyPageRequest(parent,null)).title()).hasSize(200).endsWith(" (copy)");
+    }
 }

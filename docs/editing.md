@@ -4,7 +4,8 @@ Native pages use optimistic version checks. Opening an editor freezes the page's
 base version and original Markdown. Background query refreshes do not replace
 unsaved text or silently advance that base. A successful save may update the
 title and Markdown atomically. Identical Markdown creates no additional body
-version. A conflict offers an explicit reload or a second confirmed overwrite.
+version. Native create/save content is limited to2 MB UTF-8; titles have at most
+200 characters. A conflict offers an explicit reload or a second confirmed overwrite.
 
 The editor saves changed Markdown to a private database draft every ten seconds.
 Drafts retain the original base version, including when recovered after another

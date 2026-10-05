@@ -197,7 +197,7 @@ export function PageEditorPage({ mode }: { mode: 'edit' | 'new' }) {
           const split = splitFrontmatter(draft.contentMd); setFrontmatter(split.front); setContent(split.body);
           setBaseVersionNo(draft.baseVersionNo); setSourceInit(draft.contentMd); setSourceMode(true); setSourceRevision(value => value + 1);
         }} />
-        <Input value={title} onChange={e => setTitle(e.target.value)} placeholder="标题" />
+        <Input value={title} maxLength={200} onChange={e => setTitle(e.target.value)} placeholder="标题" />
         {mode === 'new' && (
           <Select
             style={{ width: 280 }}
