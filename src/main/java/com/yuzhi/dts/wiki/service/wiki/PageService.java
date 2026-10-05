@@ -386,7 +386,9 @@ public class PageService {
         }
         writePolicy.requireWritable(targetParent);
         if (isDescendantOrSelf(targetParent, source)) { throw new IllegalArgumentException("Cannot copy into the source subtree"); }
-        String title = request.title() != null ? request.title() : source.getTitle().substring(0, Math.min(193, source.getTitle().length())) + " (copy)";
+        int titleEnd = Math.min(193, source.getTitle().length());
+        if (titleEnd > 0 && Character.isHighSurrogate(source.getTitle().charAt(titleEnd - 1))) titleEnd--;
+        String title = request.title() != null ? request.title() : source.getTitle().substring(0, titleEnd) + " (copy)";
         validateTitle(title);
         Page copy = deepCopy(source, targetParent, title);
         return toView(copy);

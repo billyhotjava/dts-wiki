@@ -105,7 +105,7 @@ class WikiEditingIT {
         mvc.perform(post("/api/wiki/spaces/edit-team/pages").with(alice()).with(csrf()).contentType("application/json")
             .content("{\"parentId\":"+parent+",\"title\":\""+title+"\"}"))
             .andExpect(status().isBadRequest());
-        mvc.perform(put("/api/wiki/pages/{id}",page).with(alice()).with(csrf()).contentType("application/json").content("{\"title\":\""+title+"\"}"))
+        mvc.perform(patch("/api/wiki/pages/{id}",page).with(alice()).with(csrf()).contentType("application/json").content("{\"title\":\""+title+"\"}"))
             .andExpect(status().isBadRequest());
         assertThat(pageRepository.count()).isEqualTo(before);
         long longTitle=pages.createPage("edit-team",new PageDtos.CreatePageRequest(parent,"a".repeat(200),"NATIVE",null)).id();
