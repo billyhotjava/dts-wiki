@@ -49,8 +49,8 @@ public class WikiMcpResource {
         catch (org.springframework.security.oauth2.jwt.JwtException e) {
             return ResponseEntity.status(401).header("WWW-Authenticate", "Bearer resource_metadata=\"" + settings.metadataUri() + "\"").build();
         }
-        byte[] bytes = request.getInputStream().readNBytes(20_000_001);
-        if (bytes.length > 20_000_000) return ResponseEntity.status(413).build();
+        byte[] bytes = request.getInputStream().readNBytes(22_000_001);
+        if (bytes.length > 22_000_000) return ResponseEntity.status(413).build();
         JsonNode message;
         try { message = json.reader().with(com.fasterxml.jackson.databind.DeserializationFeature.FAIL_ON_TRAILING_TOKENS)
             .with(com.fasterxml.jackson.core.JsonParser.Feature.STRICT_DUPLICATE_DETECTION).readTree(bytes); }

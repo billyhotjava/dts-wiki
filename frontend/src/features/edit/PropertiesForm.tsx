@@ -133,7 +133,7 @@ export function PropertiesForm({ initialYaml, onChange }: { initialYaml: string;
 
   return (
     <div style={{ marginBottom: 8 }}>
-      <Space direction="vertical" style={{ width: '100%' }}>
+      <Space orientation="vertical" style={{ width: '100%' }}>
         <span>
           属性
           <Switch checkedChildren="YAML" unCheckedChildren="表单" checked={yamlMode} onChange={setYamlMode} style={{ marginLeft: 8 }} />

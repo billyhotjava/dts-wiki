@@ -87,5 +87,16 @@
   "space": {
     "browse": "浏览页面",
     "create": "新建页面"
+  },
+  "diagram": {
+    "title": "交互图",
+    "fullscreen": "全屏",
+    "open": "新窗口打开",
+    "source": "查看源文件",
+    "download": "下载 PNG",
+    "loading": "正在加载图",
+    "fallback": "交互图的静态预览",
+    "missing": "图文件暂不可用，请联系页面作者重新生成图文件。",
+    "readOnly": "图为只读预览；修改图时请更新对应的源文件与图文件。"
   }
 }

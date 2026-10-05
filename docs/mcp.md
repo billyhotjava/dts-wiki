@@ -55,7 +55,12 @@ shared limiter before advertising the same global budget.
 
 Diagram writes require JSON source plus caller-rendered HTML and PNG. The server
 validates sizes, JSON shape and PNG signature, stores scoped attachments and
-never executes rendering code. Attachment responses carry a sandbox CSP.
+never executes rendering code. Attachment responses carry a sandbox CSP. JSON is limited to 2 MB, HTML to
+5 MB and decoded PNG to the configured image limit (10 MiB by default). The
+request envelope is limited to 22 MB. Diagram files keep matching stable names
+and replacement updates their current attachment references. HTML allows inline
+scripts in an opaque origin; it cannot read Wiki cookies or the parent DOM.
+See [content tools](content-tools.md) for the offline formatter and bundle builder.
 
 ## Verification
 

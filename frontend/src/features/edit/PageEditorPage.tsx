@@ -187,7 +187,7 @@ export function PageEditorPage({ mode }: { mode: 'edit' | 'new' }) {
 
   return (
     <>
-      <Space direction="vertical" style={{ width: '100%' }} size="middle">
+      <Space orientation="vertical" style={{ width: '100%' }} size="middle">
         <Input value={title} onChange={e => setTitle(e.target.value)} placeholder="标题" />
         {mode === 'new' && (
           <Select
@@ -227,6 +227,7 @@ export function PageEditorPage({ mode }: { mode: 'edit' | 'new' }) {
                       value={initial}
                       onChange={handleEditorChange}
                       onUploadImage={handleUpload}
+                      pageId={effectiveId}
                     />
                   )}
                 </>

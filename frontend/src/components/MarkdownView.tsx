@@ -8,6 +8,7 @@ import GithubSlugger from 'github-slugger';
 import { useEffect, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router';
 import { api } from '../api/client';
+import { ArchifyFrame, diagramReference, type DiagramReference } from './ArchifyFrame';
 
 function splitFrontmatter(md: string): string {
   if (!md.startsWith('---\n')) return md;
@@ -21,7 +22,7 @@ function escapeHtml(text: string): string {
   return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
-// Full reading stack (design 10 S4.4, minus archify which arrives in W6.5):
+// Reading extensions are rendered from Markdown; raw document HTML remains disabled.
 // markdown-it (html:false, breaks:true, linkify) + footnote + details/columns
 // containers + GitHub alerts + anchor (github-slugger) + task lists; mermaid,
 // KaTeX and Shiki load lazily only when the page needs them.
@@ -42,7 +43,8 @@ function buildRenderer(): MarkdownIt {
       return `<div class="wiki-mermaid" data-mermaid="${encodeURIComponent(token.content)}"></div>`;
     }
     if (info === 'archify') {
-      // W6.5 renders the interactive frame; until then keep the source readable.
+      const reference = diagramReference(token.info);
+      if (reference) return `<!--wiki-archify:${encodeURIComponent(JSON.stringify(reference))}-->`;
       return `<pre class="wiki-archify-src"><code>${escapeHtml(token.content)}</code></pre>`;
     }
     return `<pre data-shiki data-lang="${escapeHtml(info)}"><code>${escapeHtml(token.content)}</code></pre>`;
@@ -185,5 +187,8 @@ export function MarkdownView({ content, pageId, spaceSlug }: { content: string; 
     };
   }, [html, body, navigate, pageId, spaceSlug]);
 
-  return <div ref={hostRef} className="markdown-body" dangerouslySetInnerHTML={{ __html: html }} />;
+  return <div ref={hostRef} className="markdown-body">{html.split(/<!--wiki-archify:(.*?)-->/g).map((part, index) =>
+    index % 2 === 0 ? <div key={index} dangerouslySetInnerHTML={{ __html: part }} />
+      : <ArchifyFrame key={index} pageId={pageId} reference={JSON.parse(decodeURIComponent(part)) as DiagramReference} />,
+  )}</div>;
 }

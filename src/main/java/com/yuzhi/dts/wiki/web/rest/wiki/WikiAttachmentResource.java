@@ -51,7 +51,7 @@ public class WikiAttachmentResource {
         MediaType type = MediaTypeFactory.getMediaType(attachment.getFileName()).orElse(MediaType.APPLICATION_OCTET_STREAM);
         boolean inline = attachment.getMimeType() != null && (attachment.getMimeType().startsWith("image/") || attachment.getMimeType().equals("application/pdf"));
         return ResponseEntity.ok()
-            .header("Content-Security-Policy", "sandbox; default-src 'none'; img-src data:; style-src 'unsafe-inline'")
+            .header("Content-Security-Policy", sandboxPolicy(attachment))
             .header("X-Content-Type-Options", "nosniff")
             .contentType(type)
             .contentLength(attachment.getSize())
@@ -74,7 +74,13 @@ public class WikiAttachmentResource {
         InputStream content = blobStore.load(attachment.getSha256());
         MediaType type = MediaTypeFactory.getMediaType(attachment.getFileName()).orElse(MediaType.APPLICATION_OCTET_STREAM);
         return ResponseEntity.ok().contentType(type).contentLength(attachment.getSize())
-            .header("Content-Security-Policy", "sandbox; default-src 'none'; img-src data:; style-src 'unsafe-inline'")
+            .header("Content-Security-Policy", sandboxPolicy(attachment))
             .header("X-Content-Type-Options", "nosniff").body(new InputStreamResource(content));
+    }
+
+    private static String sandboxPolicy(Attachment attachment) {
+        return "text/html".equals(attachment.getMimeType())
+            ? "sandbox allow-scripts; default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:"
+            : "sandbox; default-src 'none'; img-src data:; style-src 'unsafe-inline'";
     }
 }

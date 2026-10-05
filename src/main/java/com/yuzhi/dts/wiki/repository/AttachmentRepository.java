@@ -18,6 +18,7 @@ public interface AttachmentRepository extends JpaRepository<Attachment, Long> {
     List<Attachment> findLiveGitBySpace(@org.springframework.data.repository.query.Param("spaceId") Long spaceId);
     // DTS-WIKI: customized (Sprint-6 W5).
     List<Attachment> findByPageIdAndDeletedAtIsNull(Long pageId);
+    java.util.Optional<Attachment> findTopByPageIdAndFileNameAndDeletedAtIsNullOrderByIdDesc(Long pageId, String fileName);
 
     // DTS-WIKI: customized (Sprint-6 W5): blob GC guard.
     long countBySha256AndDeletedAtIsNull(String sha256);

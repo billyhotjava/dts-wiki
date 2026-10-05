@@ -1,0 +1,68 @@
+#!/usr/bin/env python3
+"""Build a validated diagram bundle with an explicitly installed Archify 2.16 toolchain."""
+import hashlib
+import json
+import os
+from pathlib import Path
+import shutil
+import subprocess
+import sys
+import tempfile
+
+if len(sys.argv) != 2:
+    raise SystemExit('Usage: ARCHIFY_HOME=<installed-archify-2.16> tools/archify-build <source.archify.json>')
+
+def digest(file):
+    return hashlib.sha256(file.read_bytes()).hexdigest()
+
+def receipt(*arguments):
+    result = subprocess.run(['node', str(cli), *map(str, arguments), '--json'], capture_output=True, text=True)
+    if result.returncode:
+        raise RuntimeError(result.stdout or result.stderr or 'Archify command failed')
+    parsed = json.loads(result.stdout)
+    if not parsed.get('ok'):
+        raise RuntimeError('Archify returned an unsuccessful receipt')
+    return parsed
+
+try:
+    home = Path(os.environ['ARCHIFY_HOME']).resolve()
+    version = json.loads((home / 'package.json').read_text())['version']
+    if not version.startswith('2.16.'):
+        raise RuntimeError('This wrapper requires the reviewed Archify 2.16 release')
+    cli = home / 'bin/archify.mjs'
+    source = Path(sys.argv[1]).absolute()
+    if source.is_symlink() or not source.name.endswith('.archify.json') or source.stat().st_size > 2_000_000:
+        raise RuntimeError('Expected a regular .archify.json source of at most 2 MB')
+    diagram_type = json.loads(source.read_text())['diagram_type']
+    if diagram_type not in {'architecture', 'workflow', 'sequence', 'dataflow', 'lifecycle'}:
+        raise RuntimeError('Unsupported diagram type')
+    stem = source.name.removesuffix('.archify.json')
+    html = source.with_name(stem + '.html')
+    png = source.with_name(stem + '.png')
+    source_digest = digest(source)
+    receipt('validate', diagram_type, source, '--quality', 'showcase')
+    delivered = receipt('deliver', diagram_type, source, html, '--quality', 'showcase')
+    validation = delivered['validation']
+    if validation['checkCount'] != 9 or validation['checksPassed'] != 9 or validation['errors'] or validation['warnings']:
+        raise RuntimeError('Delivery did not pass all nine showcase checks')
+    visual = receipt('visual-check', html)
+    screenshot = next(item['file'] for item in visual['captures']['screenshots']
+                      if item['width'] == 1440 and item['height'] == 900 and item['theme'] == 'light')
+    image = source.parent / screenshot
+    if image.resolve().parent != source.parent.resolve() or not image.read_bytes().startswith(b'\x89PNG\r\n\x1a\n'):
+        raise RuntimeError('Invalid screenshot receipt')
+    if source_digest != digest(source) or source_digest != delivered['specification']['sha256'] or digest(html) != visual['artifact']['sha256']:
+        raise RuntimeError('Source or delivered HTML changed during the build')
+    with tempfile.NamedTemporaryFile(dir=source.parent, prefix=stem + '-', suffix='.tmp', delete=False) as temporary:
+        temporary_path = Path(temporary.name)
+    try:
+        shutil.copyfile(image, temporary_path)
+        temporary_path.replace(png)
+    finally:
+        temporary_path.unlink(missing_ok=True)
+    print(json.dumps({'source': str(source), 'html': str(html), 'png': str(png), 'sourceSha256': source_digest,
+                      'htmlSha256': digest(html), 'pngSha256': digest(png), 'checksPassed': 9,
+                      'visualReview': visual['visualReview']}, indent=2))
+except (KeyError, OSError, ValueError, RuntimeError, StopIteration) as error:
+    print(str(error), file=sys.stderr)
+    raise SystemExit(1)

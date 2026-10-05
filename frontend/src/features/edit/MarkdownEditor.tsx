@@ -1,9 +1,16 @@
 import { Crepe } from '@milkdown/crepe';
 import { imageBlock } from '@milkdown/crepe/feature/image-block';
 import '@milkdown/crepe/theme/frame.css';
-import { editorViewCtx } from '@milkdown/kit/core';
+import { editorViewCtx, remarkStringifyOptionsCtx } from '@milkdown/kit/core';
+import { codeBlockSchema } from '@milkdown/kit/preset/commonmark';
+import type { NodeViewConstructor } from '@milkdown/kit/prose/view';
 import { forwardRef, useEffect, useImperativeHandle, useRef } from 'react';
+import { createRoot } from 'react-dom/client';
+import i18next from 'i18next';
 import { splitFrontmatter } from '../../utils/frontmatter';
+import { markdownFormatOptions, restoreCallouts } from '../../utils/markdownFormat';
+import { ArchifyFrame, diagramReference } from '../../components/ArchifyFrame';
+export { restoreCallouts } from '../../utils/markdownFormat';
 
 export interface MarkdownEditorHandle {
   /** Full markdown including the (preserved) frontmatter. */
@@ -19,6 +26,7 @@ interface Props {
   onChange: (markdown: string) => void;
   onUploadImage: (file: File) => Promise<string>;
   readOnly?: boolean;
+  pageId?: number;
 }
 
 
@@ -27,15 +35,12 @@ interface Props {
 // Unescape only at blockquote starts (same lines the parser will treat as alerts).
 // A full callout NodeView (antd Alert styling) + `/` menu insertion is follow-up
 // polish; content integrity is what matters here and is covered by tests.
-export function restoreCallouts(md: string): string {
-  return md.replace(/^((?:> ?)+)\\\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]/gm, '$1[!$2]');
-}
 
 // Markdown-native WYSIWYG wrapper (design 05 S4, spike assets/editor-spike.md).
 // The editor only ever sees the body; frontmatter is re-attached on export so
 // git pages keep their metadata byte-identical when untouched.
 export const MarkdownEditor = forwardRef<MarkdownEditorHandle, Props>(function MarkdownEditor(
-  { value, onChange, onUploadImage, readOnly = false },
+  { value, onChange, onUploadImage, readOnly = false, pageId },
   ref,
 ) {
   const rootRef = useRef<HTMLDivElement>(null);
@@ -54,6 +59,25 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, Props>(function M
     frontRef.current = front;
     lastEmittedRef.current = body;
     const crepe = new Crepe({ root, defaultValue: body });
+    crepe.editor.config(ctx => ctx.update(remarkStringifyOptionsCtx, options => ({ ...options, ...markdownFormatOptions })));
+    // Preserve fence metadata (src/height); the default code schema keeps only lang.
+    crepe.editor.use(codeBlockSchema.extendSchema(original => context => {
+      const schema = original(context);
+      return { ...schema, attrs: { ...schema.attrs, meta: { default: '' } },
+        parseMarkdown: { ...schema.parseMarkdown, runner: (state, node, type) => {
+          state.openNode(type, { language: String(node.lang ?? ''), meta: String(node.meta ?? '') });
+          if (node.value) state.addText(String(node.value));
+          state.closeNode();
+        } },
+        toMarkdown: { ...schema.toMarkdown, runner: (state, node) => {
+          if (String(node.attrs.language).toLowerCase() === 'latex') {
+            state.addNode('math', undefined, node.textContent);
+            return;
+          }
+          state.addNode('code', undefined, node.textContent, { lang: node.attrs.language, meta: node.attrs.meta || null });
+        } },
+      };
+    }));
     crepeRef.current = crepe;
     crepe.addFeature(imageBlock, {
       onUpload: (file: File) => uploadRef.current(file),
@@ -72,8 +96,32 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, Props>(function M
         }
       });
     });
-    void crepe.create();
+    let active = true;
+    void crepe.create().then(() => {
+      if (!active) return;
+      crepe.editor.action(ctx => {
+        const view = ctx.get(editorViewCtx);
+        let original: NodeViewConstructor | undefined;
+        view.someProp('nodeViews', views => { if (views.code_block) { original = views.code_block; return true; } return false; });
+        view.setProps({ nodeViews: { ...view.props.nodeViews, code_block: (node, editor, position, decorations, inner) => {
+          if (node.attrs.language !== 'archify') {
+            if (original) return original(node, editor, position, decorations, inner);
+            const pre = document.createElement('pre'), code = document.createElement('code');
+            pre.appendChild(code); return { dom: pre, contentDOM: code };
+          }
+          const dom = document.createElement('section');
+          dom.setAttribute('contenteditable', 'false'); dom.className = 'wiki-archify-editor';
+          const preview = createRoot(dom);
+          const reference = diagramReference(`archify ${node.attrs.meta}`);
+          preview.render(<><p>{i18next.t('diagram.readOnly')}</p>{reference && pageId
+            ? <ArchifyFrame pageId={pageId} reference={reference} /> : <pre>{node.textContent}</pre>}</>);
+          return { dom, ignoreMutation: () => true, stopEvent: () => true,
+            destroy: () => { queueMicrotask(() => preview.unmount()); } };
+        } } });
+      });
+    });
     return () => {
+      active = false;
       void crepe.destroy();
       crepeRef.current = null;
     };

@@ -1,0 +1,62 @@
+#!/usr/bin/env node
+// Explicit Markdown normalization. Wiki synchronization never runs this formatter.
+import { lstat, readdir, readFile, rename, writeFile } from 'node:fs/promises';
+import path from 'node:path';
+import { formatMarkdown } from '../frontend/src/utils/markdownFormat.ts';
+
+const args = process.argv.slice(2);
+const check = args.includes('--check');
+const stdin = args.includes('--stdin');
+const inputs = args.filter(arg => arg !== '--check' && arg !== '--stdin');
+if (inputs.some(arg => arg.startsWith('-')) || (stdin && (check || inputs.length)) || (!stdin && !inputs.length)) {
+  console.error('Usage: tools/mdfmt [--check] <files-or-directories...> | --stdin');
+  process.exit(2);
+}
+const limit = 10 * 1024 * 1024;
+const decoder = new TextDecoder('utf-8', { fatal: true });
+async function collect(input) {
+  const info = await lstat(input);
+  if (info.isSymbolicLink()) throw new Error('Symlink input is not supported: ' + input);
+  if (info.isFile()) return /\.(md|markdown)$/i.test(input) ? [input] : [];
+  if (!info.isDirectory()) return [];
+  const found = [];
+  for (const entry of (await readdir(input, { withFileTypes: true })).sort((a, b) => a.name.localeCompare(b.name))) {
+    if (entry.name.startsWith('.') || ['node_modules', 'target', 'dist'].includes(entry.name) || entry.isSymbolicLink()) continue;
+    found.push(...await collect(path.join(input, entry.name)));
+  }
+  return found;
+}
+try {
+  if (stdin) {
+    const chunks = []; let length = 0;
+    for await (const chunk of process.stdin) {
+      length += chunk.length;
+      if (length > limit) throw new Error('Markdown exceeds 10 MiB');
+      chunks.push(chunk);
+    }
+    process.stdout.write(formatMarkdown(decoder.decode(Buffer.concat(chunks))));
+  } else {
+    const files = [...new Set((await Promise.all(inputs.map(collect))).flat())];
+    if (!files.length) throw new Error('No Markdown files found');
+    let changed = 0;
+    for (const file of files) {
+      const info = await lstat(file);
+      if (info.size > limit) throw new Error('Markdown exceeds 10 MiB: ' + file);
+      const before = decoder.decode(await readFile(file));
+      const after = formatMarkdown(before);
+      if (before === after) continue;
+      changed++;
+      if (!check) {
+        const temporary = file + '.mdfmt-' + process.pid;
+        await writeFile(temporary, after, { mode: info.mode, flag: 'wx' });
+        await rename(temporary, file);
+      }
+      console.log((check ? 'Needs formatting: ' : 'Formatted: ') + file);
+    }
+    console.log(`${files.length} Markdown files checked; ${changed} changed.`);
+    if (check && changed) process.exitCode = 1;
+  }
+} catch (error) {
+  console.error(error instanceof Error ? error.message : 'Markdown formatting failed');
+  process.exitCode = 2;
+}

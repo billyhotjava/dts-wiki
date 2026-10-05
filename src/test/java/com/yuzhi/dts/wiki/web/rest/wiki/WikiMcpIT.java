@@ -146,14 +146,30 @@ class WikiMcpIT {
         tool("personal", "wiki_put_diagram", Map.of("pageId", page, "name", "flow", "spec", "{\"title\":\"Flow\"}",
             "html", "<html><script>window.fixture=true</script></html>", "pngBase64", png))
             .andExpect(jsonPath("$.result.structuredContent.attachments.length()").value(3));
-        tool("personal", "wiki_get_diagram_spec", Map.of("pageId", page, "path", "flow.json"))
-            .andExpect(jsonPath("$.result.structuredContent.source.title").value("Flow"));
-        tool("outsider", "wiki_get_diagram_spec", Map.of("pageId", page, "path", "flow.json"))
+        mvc.perform(get("/api/wiki/pages/{id}/attachments", page).with(user("alice").roles("ADMIN")))
+            .andExpect(jsonPath("$[*].fileName", org.hamcrest.Matchers.containsInAnyOrder("flow.archify.json", "flow.html", "flow.png")));
+        tool("personal", "wiki_put_diagram", Map.of("pageId", page, "name", "flow", "spec", "{\"title\":\"Revised\"}",
+            "html", "<html><script>window.fixture=true</script></html>", "pngBase64", png))
+            .andExpect(jsonPath("$.result.structuredContent.attachments.length()").value(3));
+        mvc.perform(get("/api/wiki/pages/{id}/attachments", page).with(user("alice").roles("ADMIN")))
+            .andExpect(jsonPath("$.length()").value(3));
+        tool("personal", "wiki_get_diagram_spec", Map.of("pageId", page, "path", "diagrams/flow.archify.json"))
+            .andExpect(jsonPath("$.result.structuredContent.source.title").value("Revised"));
+        tool("outsider", "wiki_get_diagram_spec", Map.of("pageId", page, "path", "diagrams/flow.archify.json"))
             .andExpect(jsonPath("$.result.isError").value(true));
-        mvc.perform(get("/api/wiki/pages/{id}/raw/flow.html", page).with(user("alice").authorities(() -> "ROLE_SPACE_MCP_TEAM")))
-            .andExpect(status().isOk()).andExpect(header().string("Content-Security-Policy", org.hamcrest.Matchers.containsString("sandbox")))
+        mvc.perform(get("/api/wiki/pages/{id}/raw/diagrams/flow.html", page).with(user("alice").authorities(() -> "ROLE_SPACE_MCP_TEAM")))
+            .andExpect(status().isOk()).andExpect(header().string("Content-Security-Policy", org.hamcrest.Matchers.containsString("sandbox allow-scripts")))
             .andExpect(header().string("X-Content-Type-Options", "nosniff"));
+        mvc.perform(get("/api/wiki/pages/{id}/raw/diagrams/flow.png", page).with(user("alice").authorities(() -> "ROLE_SPACE_MCP_TEAM")))
+            .andExpect(status().isOk()).andExpect(content().contentType("image/png"));
         tool("personal", "wiki_put_diagram", Map.of("pageId", page, "name", "bad", "spec", "{}", "html", "<html/>", "pngBase64", "YQ=="))
             .andExpect(jsonPath("$.result.isError").value(true));
+        mvc.perform(multipart("/api/wiki/pages/{id}/attachments", page).file(new org.springframework.mock.web.MockMultipartFile("file", "unsafe.svg", "image/png", new byte[] {1})).with(user("alice").roles("ADMIN")).with(csrf()))
+            .andExpect(status().isBadRequest());
+        long attachmentId = json.readTree(mvc.perform(get("/api/wiki/pages/{id}/attachments", page).with(user("alice").roles("ADMIN")))
+            .andReturn().getResponse().getContentAsString()).get(0).get("id").asLong();
+        var deleted = pageRepository.findById(page).orElseThrow(); deleted.setDeletedAt(Instant.now()); pageRepository.saveAndFlush(deleted);
+        mvc.perform(get("/api/wiki/attachments/{id}", attachmentId).with(user("alice").authorities(() -> "ROLE_SPACE_MCP_TEAM")))
+            .andExpect(status().isNotFound());
     }
 }

@@ -87,5 +87,16 @@
   "space": {
     "browse": "Browse pages",
     "create": "New page"
+  },
+  "diagram": {
+    "title": "Interactive diagram",
+    "fullscreen": "Fullscreen",
+    "open": "Open in new window",
+    "source": "View source",
+    "download": "Download PNG",
+    "loading": "Loading diagram",
+    "fallback": "Static preview of the interactive diagram",
+    "missing": "Diagram files are unavailable. Ask the page author to rebuild the bundle.",
+    "readOnly": "This is a read-only preview. Update the source and its diagram files to change the diagram."
   }
 }
