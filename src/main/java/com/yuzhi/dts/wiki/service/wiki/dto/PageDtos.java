@@ -39,6 +39,7 @@ public final class PageDtos {
         List<String> labels,
         boolean watching,
         boolean editable,
+        boolean gitReadOnly,
         MetaView meta,
         String url
     ) {}

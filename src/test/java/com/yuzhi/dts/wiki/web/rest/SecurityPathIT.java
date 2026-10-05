@@ -25,6 +25,9 @@ class SecurityPathIT {
     @Autowired
     private MockMvc mockMvc;
 
+    @Autowired
+    private com.yuzhi.dts.wiki.repository.SpaceRepository spaces;
+
     // NOTE: /management/health permitAll is not assertable here: the test profile
     // disables the health endpoint (see test application.yml). It is verified at
     // deploy time by the compose healthcheck (W3 it/baseline.md).
@@ -81,7 +84,9 @@ class SecurityPathIT {
 
     @Test
     @WithMockUser(authorities = { "ROLE_ADMIN" })
+    @org.springframework.transaction.annotation.Transactional
     void mentionListsUsers() throws Exception {
+        spaces.saveAndFlush(new com.yuzhi.dts.wiki.domain.Space().slug("prs").name("Mention fixture").archived(false));
         mockMvc
             .perform(get("/api/wiki/users/mention").param("spaceSlug", "prs"))
             .andExpect(status().isOk())

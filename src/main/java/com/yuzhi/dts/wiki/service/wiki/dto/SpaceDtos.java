@@ -19,7 +19,7 @@ public final class SpaceDtos {
         List<SyncRootInfo> syncRoots
     ) {}
 
-    public record TreeNode(Long id, String title, String kind, boolean hasChildren, String syncStatus, List<TreeNode> children) {}
+    public record TreeNode(Long id, String title, String kind, boolean hasChildren, String syncStatus, boolean readOnly, List<TreeNode> children) {}
 
     public record Breadcrumb(Long id, String title) {}
 }

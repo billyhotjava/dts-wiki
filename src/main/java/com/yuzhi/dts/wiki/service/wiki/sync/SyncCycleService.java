@@ -44,6 +44,10 @@ public class SyncCycleService {
     private final PageRepository pageRepository;
     private final InboundSyncService inbound;
     private final OutboundSyncService outbound;
+    private final ImportService importer;
+    private final ContentManifestService manifest;
+    private final com.yuzhi.dts.wiki.config.WikiProperties properties;
+    private final org.springframework.transaction.support.TransactionTemplate transactions;
 
     public SyncCycleService(
         GitRepoManager git,
@@ -54,7 +58,11 @@ public class SyncCycleService {
         SyncConflictRepository conflictRepository,
         PageRepository pageRepository,
         InboundSyncService inbound,
-        OutboundSyncService outbound
+        OutboundSyncService outbound,
+        ImportService importer,
+        ContentManifestService manifest,
+        com.yuzhi.dts.wiki.config.WikiProperties properties,
+        org.springframework.transaction.PlatformTransactionManager transactionManager
     ) {
         this.git = git;
         this.spaceRepository = spaceRepository;
@@ -65,6 +73,10 @@ public class SyncCycleService {
         this.pageRepository = pageRepository;
         this.inbound = inbound;
         this.outbound = outbound;
+        this.importer = importer;
+        this.manifest = manifest;
+        this.properties = properties;
+        this.transactions = new org.springframework.transaction.support.TransactionTemplate(transactionManager);
     }
 
     public void cycleSpace(String slug) {
@@ -75,18 +87,18 @@ public class SyncCycleService {
         String branch = space.getGitBranch() == null ? "main" : space.getGitBranch();
         // W6: query roots fresh (inverse in-memory collections go stale within a session).
         List<SyncRoot> roots = rootRepository.findBySpaceWithMount(space.getId()).stream().filter(r -> Boolean.TRUE.equals(r.getEnabled())).toList();
-        LOG.info("CYCLE-DBG {} branch={} roots={} url={}", slug, branch, roots.size(), space.getGitRepoUrl());
+        LOG.debug("Sync cycle {} branch={} roots={}", slug, branch, roots.size());
         if (roots.isEmpty()) {
             return;
         }
         try {
             ensureClone(space, branch);
-            cycle(space, branch, roots);
+            transactions.executeWithoutResult(status -> cycle(space, branch, roots));
         } catch (GitCommandException e) {
-            markAll(space, roots, SyncRunStatus.OFFLINE, e.getMessage());
+            transactions.executeWithoutResult(status -> markAll(space, roots, SyncRunStatus.OFFLINE, e.getMessage()));
             LOG.warn("Sync offline for {}: {}", slug, e.getMessage());
         } catch (RuntimeException e) {
-            markAll(space, roots, SyncRunStatus.ERROR, e.getMessage());
+            transactions.executeWithoutResult(status -> markAll(space, roots, SyncRunStatus.ERROR, e.getMessage()));
             LOG.error("Sync error for {}", slug, e);
         }
     }
@@ -97,12 +109,31 @@ public class SyncCycleService {
         String lastSynced = checkpoint(roots);
         git.run(slug, List.of("fetch", "origin", branch), 60);
         setFetchTime(roots);
-        String remoteHead = git.run(slug, List.of("rev-parse", "origin/" + branch), 30);
+        String remoteHead = space.isManifestManaged()
+            ? java.util.Optional.ofNullable(manifest.snapshot()).filter(snapshot -> snapshot.slugs().contains(slug)).orElseThrow(() -> new IllegalStateException("Space is absent from the validated inventory")).commit()
+            : git.run(slug, List.of("rev-parse", "origin/" + branch), 30);
+        boolean needsImport = roots.stream().anyMatch(root -> stateRepository.findOneBySyncRootId(root.getId()).map(state -> state.getLastSyncedCommit() == null).orElse(true));
+        if (needsImport) {
+            importer.importSpaceAt(slug, remoteHead, true, 20);
+            if (!properties.isOutboundEnabled() || space.isManifestManaged()) { return; }
+            lastSynced = remoteHead;
+        }
 
         InboundSyncService.InboundReport inboundReport = inbound.inbound(space, roots, branch, lastSynced, remoteHead);
         LOG.info("Inbound {}: base={} complete={} applied={} conflicts={} skipped={} head={}", slug, lastSynced, inboundReport.complete(), inboundReport.applied(), inboundReport.conflicts(), inboundReport.skipped(), inboundReport.remoteHead());
         if (!inboundReport.complete()) {
             markAll(space, roots, SyncRunStatus.ERROR, "Inbound incomplete, checkpoint held at " + lastSynced);
+            return;
+        }
+        if (!properties.isOutboundEnabled() || space.isManifestManaged()) {
+            String absorbedHead = remoteHead;
+            for (SyncRoot root : roots) {
+                stateRepository.findOneBySyncRootId(root.getId()).ifPresent(state -> {
+                    state.setLastSyncedCommit(absorbedHead);
+                    state.setStatus(SyncRunStatus.OK);
+                    state.setMessage(null);
+                });
+            }
             return;
         }
         // Rebuild the workdir from the absorbed remote: every local commit is an outbox
@@ -248,6 +279,7 @@ public class SyncCycleService {
 
     private void ensureClone(Space space, String branch) {
         if (git.hasClone(space.getSlug())) {
+            git.run(space.getSlug(), List.of("remote", "set-url", "origin", space.getGitRepoUrl()), 10);
             return;
         }
         try {
@@ -261,6 +293,8 @@ public class SyncCycleService {
                 git.sshEnv(space.getSlug()),
                 300
             );
+        } catch (GitCommandException e) {
+            throw e;
         } catch (Exception e) {
             throw new IllegalStateException("Clone failed for space " + space.getSlug(), e);
         }

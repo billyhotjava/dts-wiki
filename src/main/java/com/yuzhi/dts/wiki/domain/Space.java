@@ -29,18 +29,30 @@ public class Space implements Serializable {
     private Long id;
 
     @NotNull
-    @Pattern(regexp = "^[a-z][a-z0-9-]{1,30}$")
+    @Pattern(regexp = "^[a-z][a-z0-9-]{1,31}$")
     @Column(name = "slug", nullable = false, unique = true)
     private String slug;
 
     @NotNull
-    @Size(max = 40)
-    @Column(name = "name", length = 40, nullable = false)
+    @Size(max = 100)
+    @Column(name = "name", length = 100, nullable = false)
     private String name;
 
-    @Size(max = 200)
-    @Column(name = "description", length = 200)
+    @Size(max = 500)
+    @Column(name = "description", length = 500)
     private String description;
+
+    @Size(max = 38)
+    @Column(name = "access_role", length = 38)
+    private String accessRole;
+
+    @Column(name = "manifest_managed", nullable = false)
+    private boolean manifestManaged;
+
+    public String getAccessRole() { return accessRole; }
+    public void setAccessRole(String value) { accessRole = value; }
+    public boolean isManifestManaged() { return manifestManaged; }
+    public void setManifestManaged(boolean value) { manifestManaged = value; }
 
     /**
      * SSH URL, e.g. git@github.com:billyhotjava/prs-stack.git ; null = no git sync

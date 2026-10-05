@@ -45,6 +45,7 @@ public class ImportService {
     private final SyncRootRepository rootRepository;
     private final SyncStateRepository stateRepository;
     private final PageService pageService;
+    private final GitAttachmentImporter assetImporter;
 
     public ImportService(
         GitRepoManager git,
@@ -53,7 +54,8 @@ public class ImportService {
         PageRepository pageRepository,
         SyncRootRepository rootRepository,
         SyncStateRepository stateRepository,
-        PageService pageService
+        PageService pageService,
+        GitAttachmentImporter assetImporter
     ) {
         this.git = git;
         this.properties = properties;
@@ -62,16 +64,23 @@ public class ImportService {
         this.rootRepository = rootRepository;
         this.stateRepository = stateRepository;
         this.pageService = pageService;
+        this.assetImporter = assetImporter;
     }
 
     public record ImportReport(int spaces, int pages, int versions, int attachments, int skipped, List<String> notes) {}
 
     @Transactional
     public ImportReport importSpace(String slug, boolean importHistory, int historyLimit) {
+        return importSpaceAt(slug, null, importHistory, historyLimit);
+    }
+
+    @Transactional
+    public ImportReport importSpaceAt(String slug, String revision, boolean importHistory, int historyLimit) {
         Space space = spaceRepository.findOneBySlug(slug).orElseThrow(() -> new IllegalArgumentException("No such space: " + slug));
         String branch = space.getGitBranch() == null ? "main" : space.getGitBranch();
         ensureClone(space, branch);
-        String head = git.head(slug);
+        git.run(slug, List.of("fetch", "origin", branch), 60);
+        String head = revision == null ? git.run(slug, List.of("rev-parse", "origin/" + branch), 30) : revision;
         List<String> notes = new ArrayList<>();
         int pages = 0;
         int versions = 0;
@@ -80,26 +89,34 @@ public class ImportService {
         for (SyncRoot root : enabledRoots(space)) {
             String repoPath = root.getRepoPath().replaceAll("/+$", "");
             Page mount = ensureMount(space, root);
-            Map<String, List<String>> tree = listFiles(slug, branch, repoPath);
+            Map<String, List<String>> tree = listFiles(slug, head, repoPath);
             List<String> mdFiles = tree.getOrDefault("md", List.of());
             // natural sort: numbers numeric, Chinese pinyin (CLDR), files before README handling below
             mdFiles = mdFiles.stream().sorted(naturalOrder()).toList();
             for (String path : mdFiles) {
-                int[] counts = importMarkdown(space, root, mount, path, branch, head, importHistory, historyLimit, notes);
+                int[] counts = importMarkdown(space, root, mount, path, head, head, importHistory, historyLimit, notes);
                 pages += counts[0];
                 versions += counts[1];
             }
-            attachments += tree.getOrDefault("bin", List.of()).size();
-            if (!tree.getOrDefault("bin", List.of()).isEmpty()) {
-                notes.add(root.getRepoPath() + ": " + tree.get("bin").size() + " binary files registered for F5/T06 round-trip");
+            for (String path : tree.getOrDefault("bin", List.of())) {
+                if (assetImporter.ingest(mount, head, path)) { attachments++; } else { skipped++; }
             }
+            for (Page existing : pageRepository.findLiveBySpace(space.getId())) {
+                String path = existing.getGitPath();
+                if (path == null || !(path.equals(repoPath) || path.startsWith(repoPath + "/"))) { continue; }
+                if (existing.getKind() == PageKind.GIT && !mdFiles.contains(path)) { pageService.ingestGitDeletion(existing, head); }
+                else if (existing.getKind() == PageKind.FOLDER && existing.getCurrentVersion() != null && !mdFiles.contains(path + "/README.md")) {
+                    pageService.ingestGitVersion(existing, "", head, null, null);
+                }
+            }
+            assetImporter.reconcile(mount, tree.getOrDefault("bin", List.of()));
             skipped += tree.getOrDefault("skip", List.of()).size();
             stateRepository.findOneBySyncRootId(root.getId()).ifPresentOrElse(
                 state -> {
                     state.setLastSyncedCommit(head);
                     state.setStatus(SyncRunStatus.OK);
                     state.setLastFetchAt(Instant.now());
-                    state.setLastPushAt(Instant.now());
+                    if (properties.isOutboundEnabled() && !space.isManifestManaged()) { state.setLastPushAt(Instant.now()); }
                 },
                 () -> {
                     SyncState state = new SyncState();
@@ -107,7 +124,7 @@ public class ImportService {
                     state.setLastSyncedCommit(head);
                     state.setStatus(SyncRunStatus.OK);
                     state.setLastFetchAt(Instant.now());
-                    state.setLastPushAt(Instant.now());
+                    if (properties.isOutboundEnabled() && !space.isManifestManaged()) { state.setLastPushAt(Instant.now()); }
                     stateRepository.save(state);
                 }
             );
@@ -122,6 +139,7 @@ public class ImportService {
 
     private void ensureClone(Space space, String branch) {
         if (git.hasClone(space.getSlug())) {
+            git.run(space.getSlug(), List.of("remote", "set-url", "origin", space.getGitRepoUrl()), 10);
             return;
         }
         if (space.getGitRepoUrl() == null || space.getGitRepoUrl().isBlank()) {
@@ -146,6 +164,7 @@ public class ImportService {
             // adopt a pre-configured mount as the root's FOLDER instead of duplicating it
             if (mount.getGitPath() == null) {
                 mount.setGitPath(mountTitle);
+                mount.setTitle(mountTitle);
             }
             return mount;
         }
@@ -158,8 +177,9 @@ public class ImportService {
         mount.setParent(rootPage);
         mount.setTitle(mountTitle);
         mount.setKind(PageKind.FOLDER);
+        mount.setGitPath(mountTitle);
         mount.setPosition(1000);
-        mount.setSyncStatus(com.yuzhi.dts.wiki.domain.enumeration.PageSyncStatus.LOCAL_ONLY);
+        mount.setSyncStatus(com.yuzhi.dts.wiki.domain.enumeration.PageSyncStatus.SYNCED);
         mount.setCreatedAt(Instant.now());
         mount.setUpdatedAt(Instant.now());
         mount = pageRepository.save(mount);
@@ -173,100 +193,76 @@ public class ImportService {
         out.put("md", new ArrayList<>());
         out.put("bin", new ArrayList<>());
         out.put("skip", new ArrayList<>());
-        String listing;
-        try {
-            listing = git.run(slug, List.of("ls-tree", "-r", "--name-only", "origin/" + branch, "--", repoPath.isEmpty() ? "." : repoPath), 60);
-        } catch (GitCommandException e) {
-            LOG.warn("ls-tree failed for {}: {}", repoPath, e.getMessage());
-            return out;
-        }
-        for (String path : listing.split("\n")) {
-            if (path.isBlank()) {
-                continue;
-            }
-            String file = path.substring(path.lastIndexOf('/') + 1);
-            if (file.startsWith(".") || file.startsWith("_")) {
+        for (var entry : git.trackedFiles(slug, branch, repoPath)) {
+            String path = entry.path();
+            if (!(entry.mode().equals("100644") || entry.mode().equals("100755"))
+                || path.chars().anyMatch(Character::isISOControl)
+                || java.util.Arrays.stream(path.split("/")).anyMatch(part -> part.startsWith(".") || part.startsWith("_"))) {
                 out.get("skip").add(path);
                 continue;
             }
+            long size = Long.parseLong(git.run(slug, List.of("cat-file", "-s", branch + ":" + path), 30));
+            if (size > properties.getMaxSyncFileSize()) { out.get("skip").add(path); continue; }
             String lower = path.toLowerCase(Locale.ROOT);
-            if (lower.endsWith(".md")) {
-                out.get("md").add(path);
-            } else if (lower.matches(".*\\.(png|jpg|jpeg|gif|webp|svg|pdf|pptx|docx|xlsx)$")) {
-                out.get("bin").add(path);
-            } else {
-                out.get("skip").add(path);
-            }
+            if (lower.endsWith(".md")) { out.get("md").add(path); }
+            else if (lower.matches(".*\\.(png|jpg|jpeg|gif|webp|svg|pdf|pptx|docx|xlsx)$")) { out.get("bin").add(path); }
+            else { out.get("skip").add(path); }
         }
         return out;
     }
 
-    private int[] importMarkdown(Space space, SyncRoot root, Page mount, String path, String branch, String head, boolean importHistory, int historyLimit, List<String> notes) {
+    private int[] importMarkdown(Space space, SyncRoot root, Page mount, String path, String revision, String head, boolean importHistory, int historyLimit, List<String> notes) {
         List<Page> pages = pageRepository.findLiveBySpace(space.getId());
+        String content = readFile(space.getSlug(), revision, path);
+        Page target;
+        int created = 0;
         if (isReadme(path)) {
-            String dir = path.substring(0, path.length() - "/README.md".length());
-            Page folder = ensureFolderChain(space, pages, relativeDir(root, dir), mount);
-            String content = readFile(space.getSlug(), branch, path);
-            String[] author = fileAuthor(space.getSlug(), head, path);
-            pageService.ingestGitVersion(folder, content, head, author[0], author[1]);
-            int versions = importFileHistory(folder, space.getSlug(), path, branch, importHistory, historyLimit);
-            return new int[] { 0, versions + 1 };
+            String dir = path.contains("/") ? path.substring(0, path.lastIndexOf('/')) : "";
+            target = ensureFolderChain(space, pages, relativeDir(root, dir), mount);
+            if (target == null) { target = mount; }
+        } else {
+            target = pages.stream().filter(page -> path.equals(page.getGitPath())).findFirst().orElse(null);
+            if (target == null) {
+                String dir = path.contains("/") ? path.substring(0, path.lastIndexOf('/')) : "";
+                Page parent = ensureFolderChain(space, pages, relativeDir(root, dir), mount);
+                String fileName = path.substring(path.lastIndexOf('/') + 1);
+                target = pageService.ingestGitPage(space, parent == null ? mount : parent, firstHeading(content, fileName), path, PageKind.GIT, null, null, null, null);
+                created = 1;
+            }
         }
-        String dir = path.contains("/") ? path.substring(0, path.lastIndexOf('/')) : "";
-        Page parent = ensureFolderChain(space, pages, relativeDir(root, dir), mount);
-        String fileName = path.substring(path.lastIndexOf('/') + 1);
-        String content = readFile(space.getSlug(), branch, path);
-        String[] author = fileAuthor(space.getSlug(), head, path);
-        Page created = pageService.ingestGitPage(space, parent == null ? mount : parent, firstHeading(content, fileName), path, PageKind.GIT, content, head, author[0], author[1]);
-        int versions = importFileHistory(created, space.getSlug(), path, branch, importHistory, historyLimit);
-        return new int[] { 1, versions + 1 };
+        int count = importFileHistory(target, space.getSlug(), path, revision, content, importHistory && target.getCurrentVersion() == null, historyLimit);
+        target.setSyncStatus(com.yuzhi.dts.wiki.domain.enumeration.PageSyncStatus.SYNCED);
+        return new int[] { created, count };
     }
 
-    private int importFileHistory(Page page, String slug, String path, String branch, boolean importHistory, int historyLimit) {
-        if (!importHistory) {
-            return 0;
-        }
-        String log;
-        try {
-            log = git.run(slug, List.of("log", "--follow", "--format=%H%x00%an%x00%ae%x00%cI", "-n", String.valueOf(historyLimit + 1), branch, "--", path), 60);
-        } catch (GitCommandException e) {
-            return 0;
-        }
-        String[] commits = log.split("\n");
-        // oldest first; skip the newest (already imported as current)
+    private int importFileHistory(Page page, String slug, String path, String revision, String currentContent, boolean importHistory, int historyLimit) {
         int count = 0;
-        for (int i = commits.length - 1; i >= 0; i--) {
-            if (commits[i].isBlank()) {
-                continue;
+        int limit = importHistory ? Math.max(1, Math.min(historyLimit, 100)) : 1;
+        String log = git.run(slug, List.of("log", "--follow", "--name-status", "--format=%H%x00%an%x00%ae%x00%cI", "-n", String.valueOf(limit), revision, "--", path), 60);
+        List<HistoryEntry> history = new ArrayList<>();
+        String historicalPath = path;
+        for (String line : log.split("\n")) {
+            String[] fields = line.split("\0", -1);
+            if (fields.length == 4) { history.add(new HistoryEntry(fields[0], fields[1], fields[2], fields[3], historicalPath)); }
+            else if (line.startsWith("R")) {
+                String[] rename = line.split("\t", -1);
+                if (rename.length == 3) { historicalPath = rename[1]; }
             }
-            String[] fields = commits[i].split("\0", -1);
-            if (fields.length < 4) {
-                continue;
-            }
-            if (i == 0) {
-                continue; // newest == current version
-            }
-            try {
-                String content = git.fileAt(slug, fields[0], path);
-                Long before = page.getCurrentVersion() == null ? null : page.getCurrentVersion().getId();
-                com.yuzhi.dts.wiki.domain.PageVersion version = pageService.ingestGitVersion(page, content, fields[0], fields[1], fields[2]);
-                // keep the original commit time instead of the import time (new versions only)
-                if (before == null || !before.equals(version.getId())) {
-                    try {
-                        version.setCreatedAt(java.time.OffsetDateTime.parse(fields[3]).toInstant());
-                    } catch (Exception e) {
-                        LOG.debug("Keeping import time for {}: bad date {}", path, fields[3]);
-                    }
-                    count++;
-                }
-            } catch (GitCommandException e) {
-                LOG.debug("Skipping history {}:{}: {}", fields[0], path, e.getMessage());
-            }
+        }
+        for (int i = history.size() - 1; i >= 0; i--) {
+            HistoryEntry entry = history.get(i);
+            String content = i == 0 ? currentContent : git.fileAt(slug, entry.commit(), entry.path());
+            Long before = page.getCurrentVersion() == null ? null : page.getCurrentVersion().getId();
+            var version = pageService.ingestGitVersion(page, content, entry.commit(), entry.author(), entry.email(), java.time.OffsetDateTime.parse(entry.date()).toInstant());
+            if (before == null || !before.equals(version.getId())) { count++; }
         }
         return count;
     }
 
+    private record HistoryEntry(String commit, String author, String email, String date, String path) {}
+
     private Page ensureFolderChain(Space space, List<Page> pages, String dir, Page mount) {
+        if (dir != null && dir.equals(mount.getGitPath())) { return mount; }
         if (dir == null || dir.isEmpty()) {
             return null;
         }
@@ -296,7 +292,7 @@ public class ImportService {
     }
 
     private String readFile(String slug, String branch, String path) {
-        String content = git.fileAt(slug, "origin/" + branch, path);
+        String content = git.fileAt(slug, branch, path);
         if (content.getBytes(StandardCharsets.UTF_8).length > properties.getMaxSyncFileSize()) {
             throw new IllegalStateException("File too large, skipped: " + path);
         }

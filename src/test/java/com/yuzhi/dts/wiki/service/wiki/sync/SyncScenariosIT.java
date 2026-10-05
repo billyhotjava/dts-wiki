@@ -42,6 +42,7 @@ class SyncScenariosIT {
 
     @DynamicPropertySource
     static void gitRoots(DynamicPropertyRegistry registry) {
+        registry.add("application.wiki.outbound-enabled", () -> true);
         // hermetic workdirs: never touch /data on the dev machine
         registry.add("application.wiki.repos-dir", () -> sharedRepos.resolve("repos").toString());
         registry.add("application.wiki.ssh-keys-dir", () -> sharedRepos.resolve("secrets").toString());
@@ -73,6 +74,9 @@ class SyncScenariosIT {
 
     @Autowired
     private com.yuzhi.dts.wiki.repository.SyncStateRepository stateRepository;
+
+    @Autowired
+    private com.yuzhi.dts.wiki.repository.SyncRootRepository rootRepository;
 
     @BeforeEach
     void requireGit() {
@@ -152,11 +156,6 @@ class SyncScenariosIT {
     // ------------------------------------------------------------ scenarios
 
     @Test
-    void importMapsFilesReadmeAndHistory() {
-        // 07 S3.1 is covered by importSpace below (counts, README->FOLDER, <=20 versions)
-    }
-
-    @Test
     void fullImportAndOutboundRoundTrip() throws Exception {
         Fixture fix = initRemote("s01", Map.of("docs/README.md", "# Guide\n", "docs/a.md", "# A\n\ntext\n"), "docs/a.md=# A\n\ntext\n\nmore\n");
         var report = adminService.importSpace(fix.slug(), true);
@@ -174,6 +173,8 @@ class SyncScenariosIT {
         scheduler.syncSpace(fix.slug());
         assertThat(showRemote(fix, "docs/a.md")).contains("wiki line");
 
+        // Absorb the verified Wiki commit before making the next developer-side edit.
+        sh(fix.dev(), "git", "pull", "--ff-only", "origin", "main");
         // git edit -> sync -> wiki version updated, page id stable
         write(fix.dev(), "docs/a.md", "# A\n\ntext\n\nmore\n\nwiki line\n\ngit line\n");
         devCommit(fix.dev(), "git line");
@@ -186,12 +187,12 @@ class SyncScenariosIT {
 
     @Test
     void disjointEditsAutoMerge() throws Exception {
-        Fixture fix = initRemote("s02", Map.of("docs/a.md", "line1\nline2\nline3\n"));
+        Fixture fix = initRemote("s02", Map.of("docs/a.md", "line1\nline2\nseparator\nline3\n"));
         adminService.importSpace(fix.slug(), false);
         Page a = pageByGitPath(fix.slug(), "docs/a.md");
         PageDtos.PageView view = pageService.getPage(a.getId());
-        pageService.saveContent(a.getId(), new PageDtos.SaveContentRequest(view.versionNo(), "line1\nline2 wiki\nline3\n", null));
-        write(fix.dev(), "docs/a.md", "line1\nline2\nline3 git\n");
+        pageService.saveContent(a.getId(), new PageDtos.SaveContentRequest(view.versionNo(), "line1\nline2 wiki\nseparator\nline3\n", null));
+        write(fix.dev(), "docs/a.md", "line1\nline2\nseparator\nline3 git\n");
         devCommit(fix.dev(), "git side");
         scheduler.syncSpace(fix.slug());
         Page merged = pageByGitPath(fix.slug(), "docs/a.md");
@@ -279,7 +280,7 @@ class SyncScenariosIT {
         adminService.createSpace("s07", "S07", null, "/nonexistent/repo.git", "main", List.of(new SyncAdminService.RootSpec("docs")));
         scheduler.syncSpace("s07");
         Space space = spaceRepository.findOneBySlug("s07").orElseThrow();
-        var states = space.getSyncRootses().stream().map(r -> stateRepository.findOneBySyncRootId(r.getId())).toList();
+        var states = rootRepository.findBySpaceWithMount(space.getId()).stream().map(r -> stateRepository.findOneBySyncRootId(r.getId())).toList();
         assertThat(states).isNotEmpty();
         assertThat(states.get(0)).isPresent();
         assertThat(states.get(0).orElseThrow().getStatus().name()).isEqualTo("OFFLINE");

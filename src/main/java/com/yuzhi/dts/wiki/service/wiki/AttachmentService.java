@@ -58,6 +58,7 @@ public class AttachmentService {
     private final SpaceAccessService spaceAccessService;
     private final BlobStore blobStore;
     private final WikiProperties properties;
+    private final PageWritePolicy writePolicy;
 
     public AttachmentService(
         AttachmentRepository attachmentRepository,
@@ -65,7 +66,8 @@ public class AttachmentService {
         PageService pageService,
         SpaceAccessService spaceAccessService,
         BlobStore blobStore,
-        WikiProperties properties
+        WikiProperties properties,
+        PageWritePolicy writePolicy
     ) {
         this.attachmentRepository = attachmentRepository;
         this.pageRepository = pageRepository;
@@ -73,6 +75,7 @@ public class AttachmentService {
         this.spaceAccessService = spaceAccessService;
         this.blobStore = blobStore;
         this.properties = properties;
+        this.writePolicy = writePolicy;
     }
 
     public record AttachmentInfo(Long id, String fileName, String mimeType, long size, String url, String markdown) {}
@@ -81,6 +84,7 @@ public class AttachmentService {
     public AttachmentInfo upload(Long pageId, String originalFilename, String contentType, byte[] bytes) {
         Page page = pageRepository.findLive(pageId).orElseThrow(() -> new SpaceNotVisibleException("page:" + pageId));
         spaceAccessService.requireWrite(page);
+        writePolicy.requireWritable(page);
         String mime = contentType == null ? "application/octet-stream" : contentType.toLowerCase(Locale.ROOT).split(";")[0].trim();
         if (!ALLOWED_MIMES.contains(mime)) {
             throw new IllegalArgumentException("Unsupported file type: " + mime);
@@ -122,6 +126,20 @@ public class AttachmentService {
     public List<AttachmentInfo> list(Long pageId) {
         Page page = pageRepository.findLive(pageId).orElseThrow(() -> new SpaceNotVisibleException("page:" + pageId));
         spaceAccessService.requireRead(page);
+        if (page.getGitPath() != null) {
+            java.nio.file.Path base = java.nio.file.Path.of(page.getGitPath());
+            if (page.getKind() != PageKind.FOLDER) { base = base.getParent(); }
+            final java.nio.file.Path directory = base == null ? java.nio.file.Path.of("") : base;
+            String prefix = directory.toString().isEmpty() ? "" : directory + "/";
+            return attachmentRepository.findLiveGitBySpace(page.getSpace().getId()).stream()
+                .filter(a -> a.getGitPath().startsWith(prefix))
+                .map(a -> {
+                    String relative = "./" + directory.relativize(java.nio.file.Path.of(a.getGitPath())).toString();
+                    boolean image = IMAGE_MIMES.contains(a.getMimeType());
+                    String reference = (image ? "!" : "") + "[" + safeAlt(a.getFileName()) + "](<" + relative + ">)";
+                    return new AttachmentInfo(a.getId(), a.getFileName(), a.getMimeType(), a.getSize(), "/api/wiki/attachments/" + a.getId(), reference);
+                }).toList();
+        }
         return attachmentRepository
             .findByPageIdAndDeletedAtIsNull(pageId)
             .stream()
@@ -143,6 +161,7 @@ public class AttachmentService {
     public void delete(Long attachmentId) {
         Attachment attachment = requireVisible(attachmentId);
         spaceAccessService.requireWrite(attachment.getPage());
+        writePolicy.requireWritable(attachment.getPage());
         attachment.setDeletedAt(Instant.now());
         attachmentRepository.save(attachment);
         if (attachmentRepository.countBySha256AndDeletedAtIsNull(attachment.getSha256()) == 0) {
@@ -160,6 +179,17 @@ public class AttachmentService {
         Page page = pageRepository.findLive(pageId).orElseThrow(() -> new SpaceNotVisibleException("page:" + pageId));
         spaceAccessService.requireRead(page);
         String name = relativePath == null ? "" : relativePath.replace("\\", "/");
+        if (page.getGitPath() != null) {
+            if (name.startsWith("/") || name.chars().anyMatch(Character::isISOControl)) {
+                throw new SpaceNotVisibleException("asset");
+            }
+            java.nio.file.Path base = java.nio.file.Path.of(page.getGitPath());
+            if (page.getKind() != PageKind.FOLDER) { base = base.getParent(); }
+            String gitPath = (base == null ? java.nio.file.Path.of(name) : base.resolve(name)).normalize().toString().replace("\\", "/");
+            if (gitPath.startsWith("../")) { throw new SpaceNotVisibleException("asset"); }
+            return attachmentRepository.findLiveBySpaceAndGitPath(page.getSpace().getId(), gitPath)
+                .orElseThrow(() -> new SpaceNotVisibleException("asset"));
+        }
         if (name.startsWith("./")) {
             name = name.substring(2);
         }

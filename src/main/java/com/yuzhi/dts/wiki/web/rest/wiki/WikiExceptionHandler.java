@@ -24,6 +24,15 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 @Order(Ordered.HIGHEST_PRECEDENCE)
 public class WikiExceptionHandler {
 
+    @ExceptionHandler(com.yuzhi.dts.wiki.service.wiki.GitPageReadOnlyException.class)
+    public ProblemDetail gitReadOnly(com.yuzhi.dts.wiki.service.wiki.GitPageReadOnlyException e) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, e.getMessage());
+        problem.setType(URI.create("https://yuzhicloud.com/problems/git-page-read-only"));
+        problem.setTitle("Git page is read-only");
+        problem.setProperty("errorKey", "GIT_PAGE_READ_ONLY");
+        return problem;
+    }
+
     @ExceptionHandler(SpaceNotVisibleException.class)
     public ProblemDetail notVisible(SpaceNotVisibleException e) {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, e.getMessage());

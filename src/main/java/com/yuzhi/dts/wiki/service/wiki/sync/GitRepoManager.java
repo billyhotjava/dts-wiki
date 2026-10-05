@@ -32,10 +32,15 @@ public class GitRepoManager {
     }
 
     public Path repoDir(String spaceSlug) {
-        return properties.reposPath().resolve(spaceSlug);
+        requireSlug(spaceSlug);
+        return properties.reposPath().toAbsolutePath().normalize().resolve(spaceSlug);
     }
 
     public Path keyPath(String spaceSlug) {
+        requireSlug(spaceSlug);
+        if (properties.getContent().getRepoUrl() != null && !properties.getContent().getRepoUrl().isBlank()) {
+            return Path.of(properties.getContent().getDeployKeyPath());
+        }
         return properties.sshKeysPath().resolve(spaceSlug + ".key");
     }
 
@@ -53,7 +58,7 @@ public class GitRepoManager {
         Path knownHosts = properties.sshKeysPath().resolve("known_hosts");
         return Map.of(
             "GIT_SSH_COMMAND",
-            "ssh -i " + key.toAbsolutePath() + " -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=" + knownHosts.toAbsolutePath()
+            "ssh -i " + shellQuote(key.toAbsolutePath().toString()) + " -o IdentitiesOnly=yes -o IdentityAgent=none -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=" + shellQuote(knownHosts.toAbsolutePath().toString())
         );
     }
 
@@ -79,7 +84,8 @@ public class GitRepoManager {
         command.add("core.quotePath=false");
         command.addAll(args);
         Process process = null;
-        try (var readers = Executors.newVirtualThreadPerTaskExecutor()) {
+        var readers = Executors.newVirtualThreadPerTaskExecutor();
+        try {
             ProcessBuilder builder = new ProcessBuilder(command).directory(directory.toFile());
             builder.environment().putAll(environment);
             builder.environment().put("GIT_TERMINAL_PROMPT", "0");
@@ -108,6 +114,7 @@ public class GitRepoManager {
                 process.descendants().forEach(ProcessHandle::destroyForcibly);
                 process.destroyForcibly();
             }
+            readers.shutdownNow();
         }
     }
 
@@ -127,6 +134,47 @@ public class GitRepoManager {
         // login%00email of the most recent commit touching path
         return run(spaceSlug, List.of("log", "-1", "--format=%an%x00%ae", revision, "--", path), 30);
     }
+
+    public record TrackedFile(String mode, String path) {}
+
+    public record Change(String status, String fromPath, String path) {}
+
+    public List<Change> changes(String slug, String from, String to, List<String> roots) {
+        List<String> arguments = new ArrayList<>(List.of("diff", "--name-status", "-z", "-M50%", from + ".." + to, "--"));
+        arguments.addAll(roots);
+        String[] items = new String(execute(repoDir(slug), arguments, sshEnv(slug), 60), StandardCharsets.UTF_8).split("\u0000");
+        List<Change> changes = new ArrayList<>();
+        for (int i = 0; i < items.length && !items[i].isEmpty();) {
+            String status = items[i++];
+            String first = items[i++];
+            if (status.startsWith("R") || status.startsWith("C")) { changes.add(new Change(status, first, items[i++])); }
+            else { changes.add(new Change(status, null, first)); }
+        }
+        return List.copyOf(changes);
+    }
+
+    public List<TrackedFile> trackedFiles(String slug, String revision, String root) {
+        byte[] listing = execute(repoDir(slug), List.of("ls-tree", "-r", "-z", revision, "--", root), sshEnv(slug), 60);
+        List<TrackedFile> files = new ArrayList<>();
+        for (String item : new String(listing, StandardCharsets.UTF_8).split("\u0000")) {
+            int tab = item.indexOf('\t');
+            if (tab > 0) { files.add(new TrackedFile(item.substring(0, 6), item.substring(tab + 1))); }
+        }
+        return List.copyOf(files);
+    }
+
+    public boolean isRegularFile(String slug, String revision, String path) {
+        String entry = run(slug, List.of("ls-tree", revision, "--", path), 30);
+        return entry.startsWith("100644 ") || entry.startsWith("100755 ");
+    }
+
+    private static void requireSlug(String slug) {
+        if (slug == null || !(slug.equals("_content") || slug.matches("[a-z][a-z0-9-]{1,31}"))) {
+            throw new IllegalArgumentException("Invalid repository slug");
+        }
+    }
+
+    private static String shellQuote(String value) { return "'" + value.replace("'", "'\"'\"'") + "'"; }
 
     private static String tail(String stderr) {
         if (stderr == null) {

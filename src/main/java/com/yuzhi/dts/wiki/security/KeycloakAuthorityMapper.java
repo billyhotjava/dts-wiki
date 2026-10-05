@@ -65,4 +65,8 @@ public final class KeycloakAuthorityMapper {
     public static String spaceAuthority(String slug) {
         return SPACE_AUTHORITY_PREFIX + slug.toUpperCase(Locale.ROOT).replace('-', '_');
     }
+
+    public static String spaceRoleAuthority(String role) {
+        return role != null && role.matches("space-[a-z][a-z0-9-]{1,31}") ? mapRole(role) : null;
+    }
 }

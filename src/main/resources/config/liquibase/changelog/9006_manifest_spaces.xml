@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<databaseChangeLog xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+                  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                  xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+    <changeSet id="9006-manifest-spaces" author="com.yuzhi">
+        <addColumn tableName="space">
+            <column name="access_role" type="varchar(38)"/>
+            <column name="manifest_managed" type="boolean" defaultValueBoolean="false">
+                <constraints nullable="false"/>
+            </column>
+        </addColumn>
+        <modifyDataType tableName="space" columnName="name" newDataType="varchar(100)"/>
+        <modifyDataType tableName="space" columnName="description" newDataType="varchar(500)"/>
+    </changeSet>
+</databaseChangeLog>

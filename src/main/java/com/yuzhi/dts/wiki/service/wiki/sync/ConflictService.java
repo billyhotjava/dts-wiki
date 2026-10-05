@@ -37,19 +37,25 @@ public class ConflictService {
     private final PageVersionRepository versionRepository;
     private final SyncOutboxRepository outboxRepository;
     private final PageService pageService;
+    private final com.yuzhi.dts.wiki.service.wiki.PageWritePolicy writePolicy;
+    private final com.yuzhi.dts.wiki.service.wiki.SpaceAccessService access;
 
     public ConflictService(
         SyncConflictRepository conflictRepository,
         PageRepository pageRepository,
         PageVersionRepository versionRepository,
         SyncOutboxRepository outboxRepository,
-        PageService pageService
+        PageService pageService,
+        com.yuzhi.dts.wiki.service.wiki.PageWritePolicy writePolicy,
+        com.yuzhi.dts.wiki.service.wiki.SpaceAccessService access
     ) {
         this.conflictRepository = conflictRepository;
         this.pageRepository = pageRepository;
         this.versionRepository = versionRepository;
         this.outboxRepository = outboxRepository;
         this.pageService = pageService;
+        this.writePolicy = writePolicy;
+        this.access = access;
     }
 
     public record MergeResult(boolean clean, String merged) {}
@@ -127,6 +133,8 @@ public class ConflictService {
             throw new IllegalArgumentException("Conflict already resolved: " + conflictId);
         }
         Page page = pageRepository.findById(conflict.getPage().getId()).orElseThrow(() -> new IllegalArgumentException("Page gone: " + conflict.getPage().getId()));
+        access.requireWrite(page);
+        writePolicy.requireWritable(page);
         PageVersion wikiVersion = conflict.getWikiVersion();
         if (wikiVersion != null && page.getCurrentVersion() != null && !wikiVersion.getId().equals(page.getCurrentVersion().getId())) {
             throw new AccessDeniedException("Page changed since the conflict was recorded; re-merge required");

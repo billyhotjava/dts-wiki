@@ -17,6 +17,7 @@ import org.springframework.stereotype.Repository;
  */
 @Repository
 public interface PageRepository extends PageRepositoryWithBagRelationships, JpaRepository<Page, Long>, JpaSpecificationExecutor<Page> {
+    List<Page> findBySpaceId(Long spaceId);
     default Optional<Page> findOneWithEagerRelationships(Long id) {
         return this.fetchBagRelationships(this.findOneWithToOneRelationships(id));
     }

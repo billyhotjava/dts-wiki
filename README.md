@@ -59,6 +59,25 @@ The company-owned implementation replaces the earlier generator-only entity
 workflow. Current design and verification evidence are maintained in the active
 Sprint 5 worklog in the coordination repository.
 
+## Content synchronization
+
+Set `application.wiki.content.repo-url`, `branch`, `manifest-path` and
+`deploy-key-path`, or their `APPLICATION_WIKI_CONTENT_*` environment equivalents.
+The manifest and frontmatter schemas are loaded from the pinned
+`com.yuzhi.dts:dts-common-pack:1.1.0` release artifact. The content repository
+declares space names, access roles and allowed roots; Wiki has no fixed inventory.
+
+Each cycle validates the entire manifest and every root at a captured Git commit
+before changing space configuration or importing content. Invalid inventories
+stop the cycle. Removed spaces retain their pages and versions but stop syncing.
+Files outside declared roots, symlinks, submodule links, hidden files and checksum
+files are excluded. Images and supported attachments use the scoped blob store.
+
+Git pages display a read-only label. Their content, tree operations and attachment
+writes return `409 GIT_PAGE_READ_ONLY`; native pages remain editable. Outbound
+synchronization is disabled by default and is always disabled for manifest-managed
+spaces. Install one read-only repository deploy key, never a personal access token.
+
 ## Release
 
 `deploy/release.sh` builds and transfers a pinned application image. Set

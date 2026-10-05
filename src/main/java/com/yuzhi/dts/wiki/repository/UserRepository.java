@@ -25,6 +25,9 @@ public interface UserRepository extends JpaRepository<User, String> {
     @Query("select user from User user where lower(user.login) like lower(concat('%', :q, '%')) or lower(user.email) like lower(concat('%', :q, '%'))")
     List<User> searchByLoginOrEmail(@Param("q") String q, Pageable pageable);
 
+    @Query("select distinct u from User u join u.authorities a where u.activated = true and (a.name = :role or a.name = 'ROLE_ADMIN') and (lower(u.login) like lower(concat('%', :q, '%')) or lower(u.firstName) like lower(concat('%', :q, '%')) or lower(u.lastName) like lower(concat('%', :q, '%')))")
+    List<User> findMentionCandidates(@Param("role") String role, @Param("q") String q, Pageable pageable);
+
     @EntityGraph(attributePaths = "authorities")
     @Cacheable(cacheNames = USERS_BY_LOGIN_CACHE, unless = "#result == null")
     Optional<User> findOneWithAuthoritiesByLogin(String login);

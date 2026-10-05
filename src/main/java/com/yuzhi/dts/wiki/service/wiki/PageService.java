@@ -63,6 +63,8 @@ public class PageService {
     private final SearchIndexService searchIndexService;
     private final SyncRootRepository syncRootRepository;
     private final ObjectMapper objectMapper;
+    private final PageWritePolicy writePolicy;
+    private final com.yuzhi.dts.wiki.config.WikiProperties properties;
 
     public PageService(
         PageRepository pageRepository,
@@ -77,7 +79,9 @@ public class PageService {
         PageMetaDao pageMetaDao,
         SearchIndexService searchIndexService,
         SyncRootRepository syncRootRepository,
-        ObjectMapper objectMapper
+        ObjectMapper objectMapper,
+        PageWritePolicy writePolicy,
+        com.yuzhi.dts.wiki.config.WikiProperties properties
     ) {
         this.pageRepository = pageRepository;
         this.pageVersionRepository = pageVersionRepository;
@@ -92,6 +96,8 @@ public class PageService {
         this.searchIndexService = searchIndexService;
         this.syncRootRepository = syncRootRepository;
         this.objectMapper = objectMapper;
+        this.writePolicy = writePolicy;
+        this.properties = properties;
     }
 
     // ------------------------------------------------------------------ read
@@ -101,7 +107,7 @@ public class PageService {
         return spaceRepository
             .findAll()
             .stream()
-            .filter(space -> spaceAccessService.canRead(space.getSlug()))
+            .filter(spaceAccessService::canRead)
             .map(space -> {
                 long count = pageRepository.findLiveBySpace(space.getId()).size();
                 return new SpaceDtos.SpaceSummary(space.getSlug(), space.getName(), space.getDescription(), count, null);
@@ -150,6 +156,7 @@ public class PageService {
             page.getKind().name(),
             !children.isEmpty(),
             page.getSyncStatus().name(),
+            writePolicy.gitReadOnly(page),
             children.stream().map(c -> toNode(c, byParent)).toList()
         );
     }
@@ -191,7 +198,8 @@ public class PageService {
     /** Raw schema JSON for the F3 properties form (null when unknown). */
     @Transactional(readOnly = true)
     public String contentSchema(String type) {
-        try (var in = new org.springframework.core.io.ClassPathResource("content-schemas/" + type + ".schema.json").getInputStream()) {
+        if (type == null || !type.matches("page|task|feature|sprint|adr|evidence")) { return null; }
+        try (var in = new org.springframework.core.io.ClassPathResource("protocol/wiki-content/frontmatter/" + type + ".v1.schema.json").getInputStream()) {
             return new String(in.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
         } catch (Exception e) {
             return null;
@@ -221,7 +229,11 @@ public class PageService {
                 throw new IllegalArgumentException("Parent page is in another space");
             }
         }
+        writePolicy.requireWritable(parent);
         PageKind kind = request.kind() == null ? (isUnderSyncRoot(parent, space) ? PageKind.GIT : PageKind.NATIVE) : PageKind.valueOf(request.kind());
+        if (kind == PageKind.GIT && (!properties.isOutboundEnabled() || space.isManifestManaged())) {
+            throw new GitPageReadOnlyException();
+        }
         Page page = new Page();
         page.setSpace(space);
         page.setParent(parent);
@@ -257,9 +269,11 @@ public class PageService {
         }
         Page page = pageRepository.findForUpdate(id).orElseThrow(() -> new SpaceNotVisibleException("page:" + id));
         spaceAccessService.requireWrite(page);
+        writePolicy.requireWritable(page);
         if (page.getSyncStatus() == PageSyncStatus.CONFLICT) {
             throw new PageSyncConflictException(id);
         }
+        if (page.getDeletedAt() != null) { throw new SpaceNotVisibleException("page:" + id); }
         PageVersion current = page.getCurrentVersion();
         int currentNo = current == null ? 0 : current.getVersionNo();
         if (currentNo != request.baseVersionNo()) {
@@ -284,6 +298,8 @@ public class PageService {
     public PageDtos.PageView renameOrMove(Long id, PageDtos.UpdatePageRequest request) {
         Page page = findVisiblePage(id);
         spaceAccessService.requireWrite(page);
+        writePolicy.requireWritable(page);
+        writePolicy.requireWritableSubtree(page);
         if (request.title() != null && !request.title().isBlank()) {
             page.setTitle(request.title());
         }
@@ -295,6 +311,7 @@ public class PageService {
             if (isDescendantOrSelf(parent, page)) {
                 throw new IllegalArgumentException("Cannot move a page under its own descendant"); // I6
             }
+            writePolicy.requireWritable(parent);
             String fromPath = page.getGitPath();
             page.setParent(parent);
             page.setPosition(request.position() != null ? request.position() : nextPosition(page.getSpace().getId(), parent.getId()));
@@ -320,10 +337,13 @@ public class PageService {
     public PageDtos.PageView copyPage(Long id, PageDtos.CopyPageRequest request) {
         Page source = findVisiblePage(id);
         spaceAccessService.requireWrite(source);
+        writePolicy.requireWritableSubtree(source);
         Page targetParent = findVisiblePage(request.targetParentId());
         if (!targetParent.getSpace().getId().equals(source.getSpace().getId())) {
             throw new IllegalArgumentException("Cannot copy a page to another space");
         }
+        writePolicy.requireWritable(targetParent);
+        if (isDescendantOrSelf(targetParent, source)) { throw new IllegalArgumentException("Cannot copy into the source subtree"); }
         Page copy = deepCopy(source, targetParent, request.title() != null ? request.title() : source.getTitle() + " (copy)");
         return toView(copy);
     }
@@ -359,6 +379,8 @@ public class PageService {
     public void deletePage(Long id) {
         Page page = findVisiblePage(id);
         spaceAccessService.requireWrite(page);
+        writePolicy.requireWritable(page);
+        writePolicy.requireWritableSubtree(page);
         Instant now = Instant.now();
         deleteSubtree(page, now);
         if (page.getKind() == PageKind.GIT) {
@@ -381,6 +403,7 @@ public class PageService {
     public PageDtos.PageView restorePage(Long id) {
         Page page = pageRepository.findById(id).orElseThrow(() -> new SpaceNotVisibleException("page:" + id));
         spaceAccessService.requireWrite(page.getSpace() == null ? null : page.getSpace().getSlug());
+        writePolicy.requireWritableSubtree(page);
         restoreSubtree(page);
         if (page.getKind() == PageKind.GIT) {
             markPendingPush(page, OutboxOp.RESTORE, Map.of("gitPath", String.valueOf(page.getGitPath())));
@@ -430,6 +453,10 @@ public class PageService {
      * touches syncStatus — the caller owns the state machine.
      */
     public PageVersion ingestGitVersion(Page page, String contentMd, String gitCommit, String commitAuthorName, String commitAuthorEmail) {
+        return ingestGitVersion(page, contentMd, gitCommit, commitAuthorName, commitAuthorEmail, Instant.now());
+    }
+
+    public PageVersion ingestGitVersion(Page page, String contentMd, String gitCommit, String commitAuthorName, String commitAuthorEmail, Instant committedAt) {
         String sha = sha256(contentMd);
         PageVersion current = page.getCurrentVersion();
         if (current != null && sha.equals(current.getContentSha256())) {
@@ -446,7 +473,7 @@ public class PageService {
         version.setAuthorEmail(commitAuthorEmail);
         version.setSource(VersionSource.GIT);
         version.setGitCommit(gitCommit);
-        version.setCreatedAt(Instant.now());
+        version.setCreatedAt(committedAt);
         matchUser(commitAuthorName, commitAuthorEmail).ifPresent(version::setAuthor);
         version = pageVersionRepository.save(version);
         page.setCurrentVersion(version);
@@ -498,6 +525,19 @@ public class PageService {
             ingestGitVersion(page, contentMd, gitCommit, commitAuthorName, commitAuthorEmail);
         }
         return page;
+    }
+
+    /** Removes an inbound file from live projections while retaining immutable history. */
+    public void ingestGitDeletion(Page page, String commit) {
+        if (page.getKind() == PageKind.FOLDER) {
+            ingestGitVersion(page, "", commit, null, null);
+            return;
+        }
+        page.setDeletedAt(Instant.now());
+        page.setUpdatedAt(Instant.now());
+        pageRepository.save(page);
+        pageMetaDao.deleteByPage(page.getId());
+        searchIndexService.delete(page.getId());
     }
 
     private Space findVisibleSpace(String slug) {
@@ -557,7 +597,8 @@ public class PageService {
             crumbs,
             labels,
             watching,
-            spaceAccessService.canWrite(page),
+            spaceAccessService.canWrite(page) && !writePolicy.gitReadOnly(page),
+            writePolicy.gitReadOnly(page),
             meta,
             "/s/" + page.getSpace().getSlug() + "/p/" + page.getId()
         );
@@ -606,6 +647,7 @@ public class PageService {
     }
 
     private void markPendingPush(Page page, OutboxOp op, Map<String, String> extra) {
+        if (!properties.isOutboundEnabled() || page.getSpace().isManifestManaged()) { return; }
         page.setSyncStatus(PageSyncStatus.PENDING_PUSH);
         pageRepository.save(page);
         Map<String, Object> payload = new LinkedHashMap<>(extra);

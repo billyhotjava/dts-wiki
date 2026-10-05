@@ -26,13 +26,11 @@ public class UserDirectoryService {
     }
 
     public List<MentionCandidate> mentionCandidates(String query, String spaceSlug) {
-        if (spaceSlug != null && !spaceSlug.isBlank()) {
-            spaceAccessService.requireRead(spaceSlug);
-        }
+        if (spaceSlug == null || spaceSlug.isBlank()) { throw new IllegalArgumentException("A space is required"); }
+        String authority = spaceAccessService.requiredReadAuthority(spaceSlug);
         String q = query == null ? "" : query.strip();
-        List<User> users = q.isEmpty()
-            ? userRepository.findAll(Pageable.ofSize(20)).getContent()
-            : userRepository.searchByLoginOrEmail(q, Pageable.ofSize(20));
+        if (q.length() > 100) { throw new IllegalArgumentException("Mention query is too long"); }
+        List<User> users = userRepository.findMentionCandidates(authority, q, Pageable.ofSize(20));
         return users.stream().map(u -> new MentionCandidate(u.getLogin(), displayName(u))).toList();
     }
 

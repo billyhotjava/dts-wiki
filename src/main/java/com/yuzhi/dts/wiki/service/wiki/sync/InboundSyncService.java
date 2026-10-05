@@ -42,6 +42,7 @@ public class InboundSyncService {
     private final PageVersionRepository pageVersionRepository;
     private final SyncConflictRepository conflictRepository;
     private final SyncOutboxRepository outboxRepository;
+    private final GitAttachmentImporter assetImporter;
 
     public InboundSyncService(
         GitRepoManager git,
@@ -50,7 +51,8 @@ public class InboundSyncService {
         PageRepository pageRepository,
         PageVersionRepository pageVersionRepository,
         SyncConflictRepository conflictRepository,
-        SyncOutboxRepository outboxRepository
+        SyncOutboxRepository outboxRepository,
+        GitAttachmentImporter assetImporter
     ) {
         this.git = git;
         this.properties = properties;
@@ -59,6 +61,7 @@ public class InboundSyncService {
         this.pageVersionRepository = pageVersionRepository;
         this.conflictRepository = conflictRepository;
         this.outboxRepository = outboxRepository;
+        this.assetImporter = assetImporter;
     }
 
     public record InboundReport(boolean complete, int applied, int conflicts, int skipped, String remoteHead) {}
@@ -71,19 +74,16 @@ public class InboundSyncService {
             return new InboundReport(true, 0, 0, 0, remoteHead);
         }
         List<String> rootPaths = enabled.stream().map(r -> r.getRepoPath().replaceAll("/+$", "")).toList();
-        String diffSpec = lastSyncedCommit == null ? remoteHead : lastSyncedCommit + ".." + remoteHead;
-        List<String> args = new ArrayList<>(List.of("diff", "--name-status", "-M50%", diffSpec));
-        args.add("--");
-        args.addAll(rootPaths);
-        String diff = git.run(slug, args, 60);
-        LOG.info("INBOUND-DBG {} diff [{}..{}]: [{}]", slug, lastSyncedCommit, remoteHead, diff.length() > 300 ? diff.substring(0, 300) : diff);
+        if (lastSyncedCommit == null) { throw new IllegalArgumentException("Initial content requires a full import"); }
+        List<GitRepoManager.Change> changes = git.changes(slug, lastSyncedCommit, remoteHead, rootPaths);
+        LOG.debug("Inbound {} interval {}..{}", slug, lastSyncedCommit, remoteHead);
         int applied = 0;
         int conflicts = 0;
         int skipped = 0;
-        for (String line : diff.split("\n")) {
-            if (line.isBlank()) {
-                continue;
-            }
+        for (var change : changes) {
+            if (change.path().chars().anyMatch(Character::isISOControl)
+                || change.fromPath() != null && change.fromPath().chars().anyMatch(Character::isISOControl)) { skipped++; continue; }
+            String line = change.status() + "\t" + (change.fromPath() == null ? "" : change.fromPath() + "\t") + change.path();
             try {
                 ChangeOutcome outcome = applyChange(space, roots, line, lastSyncedCommit, remoteHead, branch);
                 switch (outcome) {
@@ -129,13 +129,14 @@ public class InboundSyncService {
             return ChangeOutcome.SKIPPED;
         }
         String fileName = path.substring(path.lastIndexOf('/') + 1);
-        if (fileName.startsWith(".")) {
+        if (!git.isRegularFile(space.getSlug(), remoteHead, path) || java.util.Arrays.stream(path.split("/")).anyMatch(p -> p.startsWith(".") || p.startsWith("_"))) {
             return ChangeOutcome.SKIPPED;
         }
         if (!isSyncableFile(path)) {
             return importBinary(space, root, path, remoteHead, branch);
         }
-        String gitContent = git.fileAt(space.getSlug(), "origin/" + branch, path);
+        if (fileSize(space.getSlug(), remoteHead, path) > properties.getMaxSyncFileSize()) { return ChangeOutcome.SKIPPED; }
+        String gitContent = git.fileAt(space.getSlug(), remoteHead, path);
         List<Page> pages = pageRepository.findLiveBySpace(space.getId());
         Optional<Page> existing = findPageForPath(space, pages, path);
         String[] author = commitAuthor(space.getSlug(), remoteHead, path);
@@ -148,8 +149,9 @@ public class InboundSyncService {
         if (PageService.sha256(gitContent).equals(currentSha)) {
             return ChangeOutcome.APPLIED; // e.g. our own pushed commit
         }
-        if (page.getSyncStatus() == PageSyncStatus.SYNCED) {
-            pageService.ingestGitVersion(page, gitContent, fileCommit(space.getSlug(), remoteHead, path), author[0], author[1]);
+        if (!properties.isOutboundEnabled() || space.isManifestManaged() || page.getSyncStatus() == PageSyncStatus.SYNCED) {
+            pageService.ingestGitVersion(page, gitContent, fileCommit(space.getSlug(), remoteHead, path), author[0], author[1], fileTime(space.getSlug(), remoteHead, path));
+            page.setSyncStatus(PageSyncStatus.SYNCED);
             return ChangeOutcome.APPLIED;
         }
         if (page.getSyncStatus() == PageSyncStatus.PENDING_PUSH) {
@@ -178,15 +180,15 @@ public class InboundSyncService {
         if (owningRoot(roots, path) == null) {
             return ChangeOutcome.SKIPPED;
         }
+        if (!isSyncableFile(path)) { assetImporter.delete(space.getId(), path); return ChangeOutcome.APPLIED; }
         List<Page> pages = pageRepository.findLiveBySpace(space.getId());
         Optional<Page> existing = findPageForPath(space, pages, path);
         if (existing.isEmpty()) {
             return ChangeOutcome.APPLIED;
         }
         Page page = existing.orElseThrow();
-        if (page.getSyncStatus() == PageSyncStatus.SYNCED) {
-            page.setDeletedAt(Instant.now());
-            page.setUpdatedAt(Instant.now());
+        if (!properties.isOutboundEnabled() || space.isManifestManaged() || page.getSyncStatus() == PageSyncStatus.SYNCED) {
+            pageService.ingestGitDeletion(page, remoteHead);
             return ChangeOutcome.APPLIED;
         }
         // git deleted while wiki has unpushed changes -> conflict with "accept deletion" option
@@ -198,8 +200,9 @@ public class InboundSyncService {
 
     private ChangeOutcome applyRename(Space space, List<SyncRoot> roots, String from, String to, String lastSyncedCommit, String remoteHead, String branch) throws IOException {
         if (owningRoot(roots, to) == null) {
-            return ChangeOutcome.SKIPPED;
+            return owningRoot(roots, from) == null ? ChangeOutcome.SKIPPED : applyDelete(space, roots, from, remoteHead, branch);
         }
+        if (!git.isRegularFile(space.getSlug(), remoteHead, to)) { return ChangeOutcome.SKIPPED; }
         List<Page> pages = pageRepository.findLiveBySpace(space.getId());
         Optional<Page> existing = pages.stream().filter(p -> from.equals(p.getGitPath())).findFirst();
         if (existing.isPresent()) {
@@ -211,23 +214,24 @@ public class InboundSyncService {
         }
         // content may have changed along with the rename: fall through to M handling
         if (!isSyncableFile(to)) {
+            assetImporter.delete(space.getId(), from);
             return importBinary(space, owningRoot(roots, to), to, remoteHead, branch);
         }
         try {
-            String gitContent = git.fileAt(space.getSlug(), "origin/" + branch, to);
+            String gitContent = git.fileAt(space.getSlug(), remoteHead, to);
             if (existing.isPresent()) {
                 Page page = existing.orElseThrow();
                 String currentSha = page.getCurrentVersion() == null ? "" : page.getCurrentVersion().getContentSha256();
                 if (!PageService.sha256(gitContent).equals(currentSha)) {
                     String[] author = commitAuthor(space.getSlug(), remoteHead, to);
-                    pageService.ingestGitVersion(page, gitContent, fileCommit(space.getSlug(), remoteHead, to), author[0], author[1]);
+                    pageService.ingestGitVersion(page, gitContent, fileCommit(space.getSlug(), remoteHead, to), author[0], author[1], fileTime(space.getSlug(), remoteHead, to));
                 }
                 return ChangeOutcome.APPLIED;
             }
         } catch (GitCommandException e) {
             return ChangeOutcome.APPLIED; // pure rename, no content to absorb
         }
-        return ChangeOutcome.APPLIED;
+        return existing.isEmpty() ? applyAddOrModify(space, roots, to, lastSyncedCommit, remoteHead, branch) : ChangeOutcome.APPLIED;
     }
 
     private void repathChildren(Page folder, String fromDir, String toDir) {
@@ -241,23 +245,16 @@ public class InboundSyncService {
 
     private void createFromGit(Space space, SyncRoot root, List<Page> pages, String path, String gitContent, String remoteHead, String[] author, String branch) {
         if (isReadme(path)) {
-            String dir = path.substring(0, path.length() - "/README.md".length());
-            Optional<Page> folder = pages.stream().filter(p -> p.getKind() == PageKind.FOLDER && dir.equals(p.getGitPath())).findFirst();
-            if (folder.isPresent()) {
-                pageService.ingestGitVersion(folder.orElseThrow(), gitContent, fileCommit(space.getSlug(), remoteHead, path), author[0], author[1]);
-            } else {
-                Page mount = root.getMountPage();
-                Page parentChain = ensureFolderChain(space, pages, dir, mount);
-                String title = parentChain == null ? dir : parentChain.getTitle();
-                Page created = pageService.ingestGitPage(space, parentChain == null ? mount : parentChain.getParent(), title, dir, PageKind.FOLDER, gitContent, fileCommit(space.getSlug(), remoteHead, path), author[0], author[1]);
-                pages.add(created);
-            }
+            String dir = path.contains("/") ? path.substring(0, path.lastIndexOf('/')) : "";
+            Page folder = ensureFolderChain(space, pages, dir, root.getMountPage());
+            pageService.ingestGitVersion(folder == null ? root.getMountPage() : folder, gitContent, fileCommit(space.getSlug(), remoteHead, path), author[0], author[1], fileTime(space.getSlug(), remoteHead, path));
             return;
         }
         String dir = path.contains("/") ? path.substring(0, path.lastIndexOf('/')) : "";
         Page parent = ensureFolderChain(space, pages, dir, root.getMountPage());
         String title = firstHeading(gitContent, path.substring(path.lastIndexOf('/') + 1));
-        Page created = pageService.ingestGitPage(space, parent == null ? root.getMountPage() : parent, title, path, PageKind.GIT, gitContent, fileCommit(space.getSlug(), remoteHead, path), author[0], author[1]);
+        Page created = pageService.ingestGitPage(space, parent == null ? root.getMountPage() : parent, title, path, PageKind.GIT, null, null, null, null);
+        pageService.ingestGitVersion(created, gitContent, fileCommit(space.getSlug(), remoteHead, path), author[0], author[1], fileTime(space.getSlug(), remoteHead, path));
         pages.add(created);
     }
 
@@ -281,27 +278,11 @@ public class InboundSyncService {
         if (root == null || !isBinarySyncable(path)) {
             return ChangeOutcome.SKIPPED;
         }
-        if (fileSize(space.getSlug(), "origin/" + branch, path) > properties.getMaxSyncFileSize()) {
+        if (fileSize(space.getSlug(), remoteHead, path) > properties.getMaxSyncFileSize()) {
             LOG.warn("Skipping oversized sync file {} (>{} bytes)", path, properties.getMaxSyncFileSize());
             return ChangeOutcome.SKIPPED;
         }
-        // 04 S5: images/pdf/etc. become attachments of the owning folder page (or same-name md page).
-        List<Page> pages = pageRepository.findLiveBySpace(space.getId());
-        String dir = path.contains("/") ? path.substring(0, path.lastIndexOf('/')) : "";
-        Optional<Page> owner = pages
-            .stream()
-            .filter(p -> p.getKind() == PageKind.FOLDER && dir.equals(p.getGitPath()))
-            .findFirst()
-            .or(() -> pages.stream().filter(p -> {
-                String gp = p.getGitPath();
-                return gp != null && stripExtension(gp).equals(stripExtension(path));
-            }).findFirst());
-        if (owner.isEmpty()) {
-            return ChangeOutcome.SKIPPED;
-        }
-        // content bytes are handled by AttachmentService via BlobStore in the git-sync write path (T04/T05);
-        // inbound records the file presence; F5/T06 covers full binary round-trip.
-        return ChangeOutcome.APPLIED;
+        return assetImporter.ingest(root.getMountPage(), remoteHead, path) ? ChangeOutcome.APPLIED : ChangeOutcome.SKIPPED;
     }
 
     private void createConflict(Page page, String base, String wikiContent, String gitContent, String remoteHead) {
@@ -352,7 +333,7 @@ public class InboundSyncService {
             return exact;
         }
         if (isReadme(path)) {
-            String dir = path.substring(0, path.length() - "/README.md".length());
+            String dir = path.contains("/") ? path.substring(0, path.lastIndexOf('/')) : "";
             if (path.equals("README.md")) {
                 dir = "";
             }
@@ -369,6 +350,10 @@ public class InboundSyncService {
         } catch (GitCommandException e) {
             return new String[] { "", "" };
         }
+    }
+
+    private Instant fileTime(String slug, String head, String path) {
+        return java.time.OffsetDateTime.parse(git.run(slug, List.of("log", "-1", "--format=%cI", head, "--", path), 30)).toInstant();
     }
 
     private String fileCommit(String slug, String remoteHead, String path) {
@@ -399,6 +384,7 @@ public class InboundSyncService {
     private SyncRoot owningRoot(List<SyncRoot> roots, String path) {
         SyncRoot best = null;
         for (SyncRoot root : roots) {
+            if (!Boolean.TRUE.equals(root.getEnabled())) { continue; }
             String prefix = root.getRepoPath().replaceAll("/+$", "");
             if (path.equals(prefix) || path.startsWith(prefix + "/")) {
                 if (best == null || prefix.length() > best.getRepoPath().length()) {

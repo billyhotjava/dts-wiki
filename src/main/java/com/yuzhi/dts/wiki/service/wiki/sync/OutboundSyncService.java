@@ -51,6 +51,7 @@ public class OutboundSyncService {
     private final AttachmentRepository attachmentRepository;
     private final BlobStore blobStore;
     private final ObjectMapper objectMapper;
+    private final com.yuzhi.dts.wiki.repository.SyncRootRepository rootRepository;
 
     public OutboundSyncService(
         GitRepoManager git,
@@ -60,7 +61,8 @@ public class OutboundSyncService {
         PageVersionRepository versionRepository,
         AttachmentRepository attachmentRepository,
         BlobStore blobStore,
-        ObjectMapper objectMapper
+        ObjectMapper objectMapper,
+        com.yuzhi.dts.wiki.repository.SyncRootRepository rootRepository
     ) {
         this.git = git;
         this.properties = properties;
@@ -70,6 +72,7 @@ public class OutboundSyncService {
         this.attachmentRepository = attachmentRepository;
         this.blobStore = blobStore;
         this.objectMapper = objectMapper;
+        this.rootRepository = rootRepository;
     }
 
     public record OutboundReport(int committed, int done, int failed, boolean pushed) {}
@@ -91,6 +94,7 @@ public class OutboundSyncService {
      */
     @Transactional
     public List<SyncOutbox> materializePending(Space space, String branch) {
+        if (!properties.isOutboundEnabled() || space.isManifestManaged()) { return List.of(); }
         List<SyncOutbox> pending = outboxRepository.findBySpaceIdAndStatusOrderByIdAsc(space.getId(), OutboxStatus.PENDING);
         List<SyncOutbox> materialized = new ArrayList<>();
         for (SyncOutbox entry : pending) {
@@ -99,6 +103,7 @@ public class OutboundSyncService {
                     materialized.add(entry);
                 } else {
                     markDone(entry);
+                    materialized.add(entry);
                 }
             } catch (GitCommandException | IOException | IllegalArgumentException e) {
                 fail(entry, e.getMessage());
@@ -154,7 +159,7 @@ public class OutboundSyncService {
         );
         git.run(slug, List.of("add", "-A", "--", gitPath), env, 60);
         String status = git.run(slug, List.of("status", "--porcelain", "--", gitPath), Map.of(), 30);
-        if (status.isBlank() && isAlreadyPushed(slug, branch, opId)) {
+        if (status.isBlank()) {
             return false;
         }
         git.run(slug, List.of("commit", "-m", message), env, 60);
@@ -212,7 +217,7 @@ public class OutboundSyncService {
 
     private boolean isAlreadyPushed(String slug, String branch, String opId) {
         try {
-            String found = git.run(slug, List.of("log", "origin/" + branch, "--grep=Wiki-Operation-Id: " + opId, "--format=%H"), Map.of(), 30);
+            String found = git.run(slug, List.of("log", "origin/" + branch, "--grep=^Wiki-Operation-Id: " + opId + "$", "--format=%H"), Map.of(), 30);
             return !found.isBlank();
         } catch (GitCommandException e) {
             return false;
@@ -220,7 +225,7 @@ public class OutboundSyncService {
     }
 
     private void assertInRoots(Space space, String gitPath) {
-        for (SyncRoot root : space.getSyncRootses()) {
+        for (SyncRoot root : rootRepository.findBySpaceWithMount(space.getId())) {
             if (!Boolean.TRUE.equals(root.getEnabled())) {
                 continue;
             }
@@ -287,7 +292,15 @@ public class OutboundSyncService {
     @SuppressWarnings("unchecked")
     private Map<String, String> payload(SyncOutbox entry) {
         try {
-            return new HashMap<>(objectMapper.readValue(entry.getPayload(), Map.class));
+            Map<String, Object> raw = objectMapper.readValue(entry.getPayload(), Map.class);
+            Map<String, String> normalized = new HashMap<>();
+            for (var item : raw.entrySet()) {
+                Object value = item.getValue();
+                if (value == null) { continue; }
+                if (!(value instanceof String || value instanceof Number || value instanceof Boolean)) { throw new IllegalArgumentException("Invalid outbox field"); }
+                normalized.put(item.getKey(), value.toString());
+            }
+            return normalized;
         } catch (JsonProcessingException e) {
             throw new IllegalArgumentException("Bad outbox payload: " + entry.getId());
         }

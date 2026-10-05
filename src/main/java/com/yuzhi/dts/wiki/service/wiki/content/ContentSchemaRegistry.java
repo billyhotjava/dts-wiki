@@ -14,7 +14,7 @@ import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
 import org.springframework.stereotype.Component;
 
 /**
- * Loads {@code classpath:content-schemas/*.schema.json} at startup (design 10 S3.1).
+ * Loads versioned frontmatter schemas from the pinned company Pack artifact.
  * json-schema-validator 3.x works on Jackson 3 ({@code tools.jackson}).
  */
 @Component
@@ -26,12 +26,12 @@ public class ContentSchemaRegistry {
         SchemaRegistry registry = SchemaRegistry.withDefaultDialect(SpecificationVersion.DRAFT_2020_12);
         try {
             PathMatchingResourcePatternResolver resolver = new PathMatchingResourcePatternResolver();
-            for (Resource resource : resolver.getResources("classpath:content-schemas/*.schema.json")) {
+            for (Resource resource : resolver.getResources("classpath*:protocol/wiki-content/frontmatter/*.v1.schema.json")) {
                 String name = resource.getFilename();
                 if (name == null || !name.endsWith(".schema.json")) {
                     continue;
                 }
-                String type = name.substring(0, name.length() - ".schema.json".length());
+                String type = name.substring(0, name.length() - ".v1.schema.json".length());
                 try (InputStream in = resource.getInputStream()) {
                     String json = new String(in.readAllBytes(), StandardCharsets.UTF_8);
                     schemas.put(type, registry.getSchema(json));

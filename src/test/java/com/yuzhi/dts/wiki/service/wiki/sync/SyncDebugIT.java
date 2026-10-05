@@ -32,6 +32,7 @@ class SyncDebugIT {
 
     @DynamicPropertySource
     static void gitRoots(DynamicPropertyRegistry registry) {
+        registry.add("application.wiki.outbound-enabled", () -> true);
         registry.add("application.wiki.repos-dir", () -> sharedRepos.resolve("repos").toString());
         registry.add("application.wiki.ssh-keys-dir", () -> sharedRepos.resolve("secrets").toString());
     }

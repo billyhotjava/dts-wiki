@@ -44,6 +44,8 @@ class SpaceAccessServiceTest {
         prsSpace.setId(1L);
         dtsSpace = new Space().slug(DTS);
         dtsSpace.setId(2L);
+        org.mockito.Mockito.lenient().when(spaceRepository.findOneBySlug(PRS)).thenReturn(java.util.Optional.of(prsSpace));
+        org.mockito.Mockito.lenient().when(spaceRepository.findOneBySlug(DTS)).thenReturn(java.util.Optional.of(dtsSpace));
     }
 
     private void stubSpaces() {
@@ -113,5 +115,15 @@ class SpaceAccessServiceTest {
         page.setSpace(prsSpace);
         assertThat(service.canRead(page)).isTrue();
         assertThat(service.canWrite(page)).isFalse();
+    }
+
+    @Test
+    void manifestRoleOverridesTheDerivedSlugRole() {
+        prsSpace.setAccessRole("space-team-readers");
+        login(AuthoritiesConstants.USER, "ROLE_SPACE_PRS");
+        assertThat(service.canRead(PRS)).isFalse();
+        login(AuthoritiesConstants.USER, "ROLE_SPACE_TEAM_READERS");
+        assertThat(service.canRead(PRS)).isTrue();
+        assertThat(service.canRead("unknown-space")).isFalse();
     }
 }

@@ -12,6 +12,31 @@ import org.springframework.context.annotation.Configuration;
 @ConfigurationProperties(prefix = "application.wiki")
 public class WikiProperties {
 
+    private final Content content = new Content();
+
+    /** Outbound writes require an explicit opt-in; content-managed spaces stay read-only. */
+    private boolean outboundEnabled;
+
+    public Content getContent() { return content; }
+    public boolean isOutboundEnabled() { return outboundEnabled; }
+    public void setOutboundEnabled(boolean value) { outboundEnabled = value; }
+
+    public static class Content {
+        private String repoUrl = "";
+        private String branch = "main";
+        private String manifestPath = "dts-worklog/spaces.yml";
+        private String deployKeyPath = "/data/secrets/content.key";
+
+        public String getRepoUrl() { return repoUrl; }
+        public void setRepoUrl(String value) { repoUrl = value; }
+        public String getBranch() { return branch; }
+        public void setBranch(String value) { branch = value; }
+        public String getManifestPath() { return manifestPath; }
+        public void setManifestPath(String value) { manifestPath = value; }
+        public String getDeployKeyPath() { return deployKeyPath; }
+        public void setDeployKeyPath(String value) { deployKeyPath = value; }
+    }
+
     /** BlobStore root (design 02 D12). */
     private String attachmentsDir = "/data/attachments";
 

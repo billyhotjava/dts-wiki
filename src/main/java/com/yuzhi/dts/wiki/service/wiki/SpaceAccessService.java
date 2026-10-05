@@ -37,10 +37,22 @@ public class SpaceAccessService {
         if (spaceSlug == null || spaceSlug.isBlank()) {
             return false;
         }
-        return SecurityUtils.hasCurrentUserAnyOfAuthorities(
-            AuthoritiesConstants.ADMIN,
-            KeycloakAuthorityMapper.spaceAuthority(spaceSlug)
-        );
+        return spaceRepository.findOneBySlug(spaceSlug).map(this::canRead).orElse(false);
+    }
+
+    public boolean canRead(Space space) {
+        if (space == null || space.getSlug() == null) { return false; }
+        String authority = space.getAccessRole() == null
+            ? KeycloakAuthorityMapper.spaceAuthority(space.getSlug())
+            : KeycloakAuthorityMapper.spaceRoleAuthority(space.getAccessRole());
+        return SecurityUtils.hasCurrentUserThisAuthority(AuthoritiesConstants.ADMIN)
+            || authority != null && SecurityUtils.hasCurrentUserThisAuthority(authority);
+    }
+
+    public String requiredReadAuthority(String slug) {
+        requireRead(slug);
+        Space space = spaceRepository.findOneBySlug(slug).orElseThrow(() -> new SpaceNotVisibleException(slug));
+        return space.getAccessRole() == null ? KeycloakAuthorityMapper.spaceAuthority(slug) : KeycloakAuthorityMapper.spaceRoleAuthority(space.getAccessRole());
     }
 
     public boolean canWrite(String spaceSlug) {
@@ -51,11 +63,11 @@ public class SpaceAccessService {
     }
 
     public boolean canRead(Page page) {
-        return page != null && page.getSpace() != null && canRead(page.getSpace().getSlug());
+        return page != null && canRead(page.getSpace());
     }
 
     public boolean canWrite(Page page) {
-        return page != null && page.getSpace() != null && canWrite(page.getSpace().getSlug());
+        return canRead(page) && SecurityUtils.hasCurrentUserAnyOfAuthorities(AuthoritiesConstants.EDITOR, AuthoritiesConstants.ADMIN);
     }
 
     /**
@@ -69,7 +81,7 @@ public class SpaceAccessService {
         return spaceRepository
             .findAll()
             .stream()
-            .filter(space -> canRead(space.getSlug()))
+            .filter(this::canRead)
             .map(Space::getId)
             .collect(Collectors.toSet());
     }

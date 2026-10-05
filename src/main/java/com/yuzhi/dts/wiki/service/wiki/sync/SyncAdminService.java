@@ -132,8 +132,8 @@ public class SyncAdminService {
             throw new IllegalStateException("No deploy key for space " + slug + "; generate one first");
         }
         String branch = space.getGitBranch() == null ? "main" : space.getGitBranch();
-        git.run(slug, List.of("ls-remote", space.getGitRepoUrl(), branch), 60);
-        if (git.hasClone(slug)) {
+        git.runIn(properties.reposPath(), List.of("ls-remote", "--", space.getGitRepoUrl(), branch), git.sshEnv(slug), 60);
+        if (properties.isOutboundEnabled() && !space.isManifestManaged() && git.hasClone(slug)) {
             git.run(slug, List.of("push", "--dry-run", "origin", "HEAD:" + branch), 60);
         }
         return "OK";
@@ -165,7 +165,7 @@ public class SyncAdminService {
         if (spaceRepository.findOneBySlug(slug).isPresent()) {
             throw new IllegalArgumentException("Space already exists: " + slug);
         }
-        if (!slug.matches("^[a-z][a-z0-9-]{1,30}$")) {
+        if (!slug.matches("^[a-z][a-z0-9-]{1,31}$")) {
             throw new IllegalArgumentException("Bad slug: " + slug);
         }
         Space space = new Space();
