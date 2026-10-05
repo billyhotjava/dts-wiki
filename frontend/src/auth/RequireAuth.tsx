@@ -7,7 +7,7 @@ import { useAuth } from './AuthProvider';
 export function RequireAuth({ children }: { children: ReactNode }) {
   const { isLoading, isError } = useAuth();
   if (isLoading) {
-    return <Spin fullscreen tip="Loading" />;
+    return <Spin fullscreen description="Loading" />;
   }
   if (isError) {
     window.location.href = '/oauth2/authorization/oidc';

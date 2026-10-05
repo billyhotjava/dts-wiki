@@ -151,7 +151,7 @@ export function PropertiesForm({ initialYaml, onChange }: { initialYaml: string;
             ))}
           </Form>
         )}
-        {clientErrors.length > 0 && <Alert type="warning" showIcon message="客户端预校验" description={clientErrors.join('；')} />}
+        {clientErrors.length > 0 && <Alert type="warning" showIcon title="客户端预校验" description={clientErrors.join('；')} />}
       </Space>
     </div>
   );

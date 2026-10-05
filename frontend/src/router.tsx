@@ -13,7 +13,7 @@ const PageEditorPage = lazy(() => import('./features/edit/PageEditorPage').then(
 const TrashPage = lazy(() => import('./features/home/TrashPage').then(m => ({ default: m.TrashPage })));
 
 function Suspended({ children }: { children: React.ReactNode }) {
-  return <Suspense fallback={<Spin fullscreen tip="Loading" />}>{children}</Suspense>;
+  return <Suspense fallback={<Spin fullscreen description="Loading" />}>{children}</Suspense>;
 }
 
 const editElement = (mode: 'edit' | 'new') => (

@@ -44,7 +44,7 @@ export function PropertiesPanel({ page }: { page: PageView }) {
         <Alert
           type="warning"
           showIcon
-          message="属性不合规"
+          title="属性不合规"
           description={meta.errors.map(e => `${e.path}: ${e.message}`).join('；')}
           style={{ marginBottom: 8 }}
         />

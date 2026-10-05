@@ -175,11 +175,11 @@ export function PageEditorPage({ mode }: { mode: 'edit' | 'new' }) {
     if (isError) {
       return <AsyncState loading={false} error={new Error('load failed')} empty={false} onRetry={() => void refetch()} children={null} />;
     }
-    return <Spin fullscreen tip="Loading" />;
+    return <Spin fullscreen description="Loading" />;
   }
 
   if (mode === 'edit' && page && (page.gitReadOnly || !page.editable)) {
-    return <Alert type="info" showIcon message={page.gitReadOnly ? t('page.gitReadOnly') : t('page.cannotEdit')} description={page.gitReadOnly ? t('page.gitReadOnlyHint') : undefined} action={<Button onClick={() => navigate(`/s/${slug}/p/${page.id}`, { replace: true })}>{t('page.returnToPage')}</Button>} />;
+    return <Alert type="info" showIcon title={page.gitReadOnly ? t('page.gitReadOnly') : t('page.cannotEdit')} description={page.gitReadOnly ? t('page.gitReadOnlyHint') : undefined} action={<Button onClick={() => navigate(`/s/${slug}/p/${page.id}`, { replace: true })}>{t('page.returnToPage')}</Button>} />;
   }
 
   const templateBody = mode === 'new' && templateId ? splitFrontmatter(templates?.find(t => t.id === templateId)?.contentMd ?? '').body : null;
@@ -200,7 +200,7 @@ export function PageEditorPage({ mode }: { mode: 'edit' | 'new' }) {
           />
         )}
         <PropertiesForm initialYaml={frontmatter} onChange={setFrontmatter} />
-        {frontmatterErrors.length > 0 && <Alert type="error" showIcon message="属性不合规，内容未保存" description={frontmatterErrors.join('；')} />}
+        {frontmatterErrors.length > 0 && <Alert type="error" showIcon title="属性不合规，内容未保存" description={frontmatterErrors.join('；')} />}
         <Tabs
           items={[
             {
