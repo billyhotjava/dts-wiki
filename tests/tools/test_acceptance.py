@@ -17,7 +17,7 @@ TOKEN = "private-fixture-token"
 
 @contextlib.contextmanager
 def server(mode="normal"):
-    state = {"requests": [], "pages": {}, "next_id": 100, "deleted": [], "save_bodies": []}
+    state = {"requests": [], "pages": {}, "next_id": 100, "deleted": [], "save_bodies": [], "create_parents": []}
 
     class Handler(BaseHTTPRequestHandler):
         def log_message(self, *args):
@@ -48,18 +48,21 @@ def server(mode="normal"):
                 if self.path == "/api/wiki/spaces":
                     return self.reply(200, [{"slug": "team", "pageCount": 2 if mode == "small" else 10000}])
                 if self.path == "/api/wiki/spaces/team":
-                    return self.reply(200, {"slug": "team", "editable": True})
+                    return self.reply(200, {"slug": "team", "editable": True, "rootPageId": 2})
                 if self.path == "/api/wiki/spaces/hidden":
                     return self.reply(200 if mode == "leak" else 404, {"private": TOKEN})
                 if self.path.startswith("/api/wiki/search?"):
                     return self.reply(200, {"items": [], "total": 0})
                 if self.path == "/api/wiki/pages/1":
                     return self.reply(200, {"id": 1, "spaceSlug": "team", "gitReadOnly": True, "editable": False, "versionNo": 1})
+                if self.path == "/api/wiki/pages/2":
+                    return self.reply(200, {"id": 2, "spaceSlug": "team", "gitReadOnly": mode == "git-root", "editable": True})
                 if self.path == "/api/wiki/pages/1/versions?size=1":
                     return self.reply(200, {"items": [{"versionNo": 1, "contentMd": None}], "total": 1})
                 if self.path == "/api/wiki/spaces/team/pages" and self.command == "POST":
                     payload = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
                     state["save_bodies"].append(payload["contentMd"])
+                    state["create_parents"].append(payload["parentId"])
                     state["next_id"] += 1
                     page_id = state["next_id"]
                     state["pages"][page_id] = 1
@@ -146,6 +149,15 @@ class AcceptanceToolsTest(unittest.TestCase):
             self.assertEqual(set(state["deleted"]), set(state["pages"]))
             self.assertTrue(all(version == 3 for version in state["pages"].values()))
             self.assertNotIn(("DELETE", "/api/wiki/pages/1"), state["requests"])
+            self.assertEqual([2, 2], state["create_parents"])
+            self.assertNotIn(2, state["deleted"])
+
+    def test_save_never_creates_below_a_git_owned_root(self):
+        with server("git-root") as (origin, state):
+            result = self.benchmark(origin, "--save-space", "team")
+            self.assertEqual(1, result.returncode)
+            self.assertEqual([], state["create_parents"])
+            self.assertEqual([], state["deleted"])
 
     def test_failed_save_still_cleans_owned_pages(self):
         with server("save-fail") as (origin, state):

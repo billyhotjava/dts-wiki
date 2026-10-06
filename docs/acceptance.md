@@ -77,8 +77,8 @@ tools/acceptance-benchmark --base-url https://your-wiki.example \
 ```
 
 To measure save latency, explicitly authorize creation in a disposable acceptance
-space with `--save-space <approved-disposable-space>`. Each worker creates a new
-native root page with a unique run title, uses exact base versions for subsequent
+space with `--save-space <approved-disposable-space>`. Each worker validates the
+existing writable native root, creates a child with a unique run title, uses exact base versions for subsequent
 updates and soft-deletes only its own acknowledged, ownership-validated page.
 Existing pages, Git content and database schema are never modified by this mode.
 Create/cleanup time is excluded from the save samples. CSRF cookies are retained

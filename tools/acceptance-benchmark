@@ -69,15 +69,21 @@ def save_measurement(origin, token, args):
         try:
             space = client.json("GET", space_path)
             require(isinstance(space, dict) and space.get("editable") is True, "Save space must be writable")
+            root_id = space.get("rootPageId")
+            require(type(root_id) is int and root_id > 0, "Save space requires an existing root")
+            root = client.json("GET", f"/api/wiki/pages/{root_id}")
+            require(isinstance(root, dict) and root.get("id") == root_id and root.get("spaceSlug") == args.save_space
+                    and root.get("gitReadOnly") is False and root.get("editable") is True,
+                    "Save probes require a writable native root")
             creation_attempted = True
             title = f"{run_id}-{number}"
             page = client.json("POST", space_path + "/pages", {
-                "parentId": None, "kind": "NATIVE", "title": title,
+                "parentId": root_id, "kind": "NATIVE", "title": title,
                 "contentMd": revision_body(args.save_body, 0),
             }, expected=201)
             # A malformed create response must never authorize deletion of an existing page.
             require(isinstance(page, dict) and type(page.get("id")) is int and page["id"] > 0
-                    and page["id"] != args.page_id and page.get("title") == title
+                    and page["id"] not in (args.page_id, root_id) and page.get("title") == title
                     and page.get("spaceSlug") == args.save_space and page.get("kind") == "NATIVE"
                     and page.get("gitReadOnly") is False, "Unconfirmed probe ownership")
             page_id = page["id"]

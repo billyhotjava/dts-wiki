@@ -21,7 +21,7 @@ export function SpaceHomePage() {
         <Typography.Paragraph>{data.description}</Typography.Paragraph>
         <Space wrap>
           {data.rootPageId && <Button onClick={() => navigate(`/s/${slug}/p/${data.rootPageId}`)}>{t('space.browse')}</Button>}
-          {data.editable && <Button type="primary" onClick={() => navigate(`/s/${slug}/new${data.rootPageId ? `?parentId=${data.rootPageId}` : ''}`)}>{t('space.create')}</Button>}
+          {data.editable && <Button type="primary" onClick={() => navigate(`/s/${slug}/new${data.rootPageId ? `?parent=${data.rootPageId}` : ''}`)}>{t('space.create')}</Button>}
           <Button onClick={() => navigate(`/s/${slug}/board`)}>{t('board.title')}</Button>
         </Space>
         <Suspense><ActivityPanel space={slug} /></Suspense>
