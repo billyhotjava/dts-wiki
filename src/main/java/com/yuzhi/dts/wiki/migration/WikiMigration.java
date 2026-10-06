@@ -2,9 +2,9 @@ package com.yuzhi.dts.wiki.migration;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.WebApplicationType;
-import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
-import org.springframework.boot.data.jpa.autoconfigure.DataJpaRepositoriesAutoConfiguration;
-import org.springframework.boot.hibernate.autoconfigure.HibernateJpaAutoConfiguration;
+import org.springframework.boot.autoconfigure.ImportAutoConfiguration;
+import org.springframework.boot.jdbc.autoconfigure.DataSourceAutoConfiguration;
+import org.springframework.boot.liquibase.autoconfigure.LiquibaseAutoConfiguration;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Profile;
 
@@ -25,6 +25,6 @@ public final class WikiMigration {
 
     @Configuration(proxyBeanMethods = false)
     @Profile("wiki-migration")
-    @EnableAutoConfiguration(exclude = { HibernateJpaAutoConfiguration.class, DataJpaRepositoriesAutoConfiguration.class })
+    @ImportAutoConfiguration({ DataSourceAutoConfiguration.class, LiquibaseAutoConfiguration.class })
     static class MigrationConfiguration {}
 }
