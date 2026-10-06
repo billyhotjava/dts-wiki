@@ -9,6 +9,7 @@ import { useEffect, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router';
 import { api } from '../api/client';
 import { ArchifyFrame, diagramReference, type DiagramReference } from './ArchifyFrame';
+import { useTranslation } from 'react-i18next';
 
 function splitFrontmatter(md: string): string {
   if (!md.startsWith('---\n')) return md;
@@ -52,22 +53,43 @@ function buildRenderer(): MarkdownIt {
   return md;
 }
 
-let sharedRenderer: MarkdownIt | null = null;
-function renderer(): MarkdownIt {
-  if (sharedRenderer === null) sharedRenderer = buildRenderer();
-  return sharedRenderer;
+export function renderDocument(body: string) {
+  // Slug state belongs to one document; repeated visits must keep stable deep links.
+  const md = buildRenderer();
+  const environment = {};
+  const tokens = md.parse(body, environment);
+  const headings = tokens.flatMap((token, index) => {
+    if (token.type !== 'heading_open') return [];
+    const id = token.attrGet('id');
+    const inline = tokens[index + 1];
+    const title = (inline?.children ?? []).map(child =>
+      ['text', 'code_inline', 'image'].includes(child.type) ? child.content :
+        ['softbreak', 'hardbreak'].includes(child.type) ? ' ' : '').join('');
+    return id && title ? [{ id, title, level: Number(token.tag.slice(1)) }] : [];
+  });
+  return { html: md.renderer.render(tokens, md.options, environment), headings };
 }
 
 export function MarkdownView({ content, pageId, spaceSlug }: { content: string; pageId: number; spaceSlug: string }) {
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const hostRef = useRef<HTMLDivElement>(null);
   const body = useMemo(() => splitFrontmatter(content), [content]);
-  const html = useMemo(() => renderer().render(body), [body]);
+  const { html, headings } = useMemo(() => renderDocument(body), [body]);
 
   useEffect(() => {
     const host = hostRef.current;
     if (host === null) return;
     let cancelled = false;
+
+    // A linked heading may arrive before the asynchronous page body is rendered.
+    try {
+      const id = decodeURIComponent(window.location.hash.slice(1));
+      if (id) [...host.querySelectorAll<HTMLElement>('[id]')]
+        .find(element => element.id === id)?.scrollIntoView?.({ block: 'start' });
+    } catch {
+      // Invalid URL escapes leave the document readable.
+    }
 
     // images lazy (native); external links open in a new tab
     host.querySelectorAll('img').forEach(img => img.setAttribute('loading', 'lazy'));
@@ -187,8 +209,17 @@ export function MarkdownView({ content, pageId, spaceSlug }: { content: string; 
     };
   }, [html, body, navigate, pageId, spaceSlug]);
 
-  return <div ref={hostRef} className="markdown-body">{html.split(/<!--wiki-archify:(.*?)-->/g).map((part, index) =>
+  return <>
+    {headings.length > 1 && <details className="wiki-outline" open>
+      <summary>{t('page.outline')}</summary>
+      <nav aria-label={t('page.outline')}><ol>{headings.map(heading =>
+        <li key={heading.id} style={{ marginLeft: (heading.level - 1) * 12 }}>
+          <a href={`#${encodeURIComponent(heading.id)}`}>{heading.title}</a>
+        </li>)}</ol></nav>
+    </details>}
+    <div ref={hostRef} className="markdown-body">{html.split(/<!--wiki-archify:(.*?)-->/g).map((part, index) =>
     index % 2 === 0 ? <div key={index} dangerouslySetInnerHTML={{ __html: part }} />
       : <ArchifyFrame key={index} pageId={pageId} reference={JSON.parse(decodeURIComponent(part)) as DiagramReference} />,
-  )}</div>;
+  )}</div>
+  </>;
 }

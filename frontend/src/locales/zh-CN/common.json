@@ -5,6 +5,7 @@
     "spacesHint": "你有权限的产品空间将显示在这里"
   },
   "page": {
+    "outline": "本页目录",
     "gitReadOnly": "来自 Git · 只读",
     "gitReadOnlyHint": "请在源仓库中修改此页面。",
     "cannotEdit": "你没有此页面的编辑权限。",

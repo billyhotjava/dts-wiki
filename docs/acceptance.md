@@ -20,6 +20,12 @@ tools/acceptance-smoke --base-url https://your-wiki.example \
   --public-only --expected-commit <application-commit>
 ```
 
+For the Kubernetes profile, run inside the trusted operator network or use
+separate port forwards. Supply `--management-url http://127.0.0.1:<forwarded-port>`
+for the internal management listener. Health and commit reads use that origin
+without identity tokens; all API/MCP checks keep using `--base-url`. The management
+Service must never receive a public Gateway route.
+
 Create a credential-free plan outside the source checkout. Replace the neutral
 example slugs and page IDs with actual expectations from the content manifest
 and approved membership matrix. Include an allowed and denied personal account

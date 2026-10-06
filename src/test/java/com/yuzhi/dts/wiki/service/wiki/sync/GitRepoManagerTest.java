@@ -21,6 +21,13 @@ class GitRepoManagerTest {
     }
 
     @Test
+    void sshRequiresExternallyPinnedHostsAndNeverPromptsOrUsesAnAgent() {
+        String command = manager().sshEnv("sample").get("GIT_SSH_COMMAND");
+        assertThat(command).contains("StrictHostKeyChecking=yes", "BatchMode=yes", "IdentityAgent=none")
+            .doesNotContain("accept-new");
+    }
+
+    @Test
     void fileReadsPreserveAllSourceWhitespaceAndUnicode() throws Exception {
         Path repo = Files.createDirectory(directory.resolve("sample"));
         GitRepoManager git = manager();

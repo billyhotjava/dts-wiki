@@ -5,6 +5,7 @@
     "spacesHint": "Product spaces you can read will show up here"
   },
   "page": {
+    "outline": "On this page",
     "gitReadOnly": "From Git · Read only",
     "gitReadOnlyHint": "Edit this page in its source repository.",
     "cannotEdit": "You do not have permission to edit this page.",

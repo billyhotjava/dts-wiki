@@ -58,7 +58,7 @@ public class GitRepoManager {
         Path knownHosts = properties.sshKeysPath().resolve("known_hosts");
         return Map.of(
             "GIT_SSH_COMMAND",
-            "ssh -i " + shellQuote(key.toAbsolutePath().toString()) + " -o IdentitiesOnly=yes -o IdentityAgent=none -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=" + shellQuote(knownHosts.toAbsolutePath().toString())
+            "ssh -i " + shellQuote(key.toAbsolutePath().toString()) + " -o BatchMode=yes -o IdentitiesOnly=yes -o IdentityAgent=none -o StrictHostKeyChecking=yes -o UserKnownHostsFile=" + shellQuote(knownHosts.toAbsolutePath().toString())
         );
     }
 

@@ -43,6 +43,7 @@ def validate_plan(document):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--base-url", required=True)
+    parser.add_argument("--management-url", help="Internal Kubernetes management origin; defaults to the application origin")
     scope = parser.add_mutually_exclusive_group(required=True)
     scope.add_argument("--plan", type=Path, help="Credential-free identity/space/page expectations")
     scope.add_argument("--public-only", action="store_true", help="Health/version/anonymous checks; identity acceptance remains GAP")
@@ -52,6 +53,7 @@ def main():
     checks = []
     try:
         origin = origin_url(args.base_url)
+        management_origin = origin_url(args.management_url) if args.management_url else origin
         require(1 <= len(args.search.strip()) <= 200, "Invalid search term")
         require(args.expected_commit is None or re.fullmatch(r"[a-f0-9]{7,40}", args.expected_commit), "Invalid expected commit")
         identities = []
@@ -70,13 +72,14 @@ def main():
             checks.append({"check": name, "result": "FAIL"})
 
     anonymous = Client(origin)
+    management = Client(management_origin)
     for suffix in ("", "/readiness"):
         check("health" + suffix, lambda suffix=suffix: require(
-            anonymous.json("GET", "/management/health" + suffix).get("status") == "UP"))
+            management.json("GET", "/management/health" + suffix).get("status") == "UP"))
     check("anonymous-api-rejected", lambda: require(anonymous.request("GET", "/api/wiki/spaces").status == 401))
     if args.expected_commit:
         def deployed_commit():
-            info = anonymous.json("GET", "/management/info")
+            info = management.json("GET", "/management/info")
             git = info.get("git", {})
             commit = git.get("commit", {}).get("id")
             if isinstance(commit, dict):

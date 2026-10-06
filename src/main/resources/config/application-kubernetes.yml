@@ -1,0 +1,33 @@
+# Activate together with prod. Helm owns migration ordering and connection Secrets.
+management:
+  server:
+    port: 9091
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  prometheus:
+    metrics:
+      export:
+        enabled: true
+spring:
+  liquibase:
+    enabled: false
+  lifecycle:
+    timeout-per-shutdown-phase: 30s
+  servlet:
+    multipart:
+      location: /tmp
+server:
+  forward-headers-strategy: framework
+  servlet:
+    session:
+      cookie:
+        secure: true
+        same-site: lax
+application:
+  wiki:
+    repos-dir: /data/repos
+    attachments-dir: /data/attachments
+    ssh-keys-dir: /data/secrets
+    outbound-enabled: false

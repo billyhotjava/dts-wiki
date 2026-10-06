@@ -280,6 +280,21 @@ class AcceptanceToolsTest(unittest.TestCase):
             self.assertEqual(1, result.returncode)
             self.assertEqual("FAIL", json.loads(result.stdout)["result"])
 
+    def test_separate_management_origin_receives_only_public_reads(self):
+        with server() as (origin, state), server() as (management, management_state):
+            result = self.smoke(origin, self.plan(), "--management-url", management, "--expected-commit", "aaaaaaa")
+            self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+            self.assertTrue(all(path.startswith("/management/") and method == "GET"
+                                for method, path in management_state["requests"]))
+            self.assertFalse(any(path.startswith("/management/") for _, path in state["requests"]))
+
+    def test_invalid_management_origin_fails_before_network(self):
+        with server() as (origin, state):
+            result = self.invoke("acceptance-smoke", "--base-url", origin, "--public-only",
+                                 "--management-url", "http://user:secret@localhost", token="")
+            self.assertEqual(1, result.returncode)
+            self.assertEqual([], state["requests"])
+
     def test_unhealthy_instance_fails(self):
         with server("unhealthy") as (origin, _):
             result = self.smoke(origin, self.plan())

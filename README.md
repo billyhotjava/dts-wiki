@@ -75,6 +75,19 @@ writes return `409 GIT_PAGE_READ_ONLY`; native pages remain editable. Outbound
 synchronization is disabled by default and is always disabled for manifest-managed
 spaces. Install one read-only repository deploy key, never a personal access token.
 
+## Kubernetes
+
+The owning deployment module supplies `dts-infra/charts/dts-wiki`. Activate
+`prod,kubernetes` only with the chart's migration Job and external PostgreSQL/OIDC
+connection Secrets. PostgreSQL must provide pg_bigm; a standard image without
+that extension cannot apply the Wiki changelog. The initial chart uses one
+application replica with a retained PVC for attachments and Git working copies.
+See [Kubernetes runtime](docs/kubernetes.md) for management-port separation,
+migrations, storage, limits and rollout requirements.
+
+Long documents show a collapsible page outline. Heading links remain stable
+across document visits, including repeated and Unicode titles.
+
 ## Release
 
 `deploy/release.sh --prepare <tag> <new-bundle-dir>` verifies and prepares local
