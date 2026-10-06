@@ -1,20 +1,103 @@
 #!/usr/bin/env python3
-"""Read-only authenticated latency acceptance; never seeds or modifies content."""
+"""Authenticated latency acceptance; save probes require an explicit disposable space."""
 import argparse
 import concurrent.futures
 import json
-import math
-import os
+import re
 import sys
 import threading
 import time
 import urllib.parse
-import urllib.request
+import uuid
+
+from acceptance_http import Client, ProbeFailure, external_token, origin_url, percentile, require
 
 
-class NoRedirect(urllib.request.HTTPRedirectHandler):
-    def redirect_request(self, request, response, code, message, headers, new_url):
-        return None
+def read_measurement(origin, token, path, name, budget, args):
+    barrier = threading.Barrier(args.concurrency)
+
+    def worker():
+        client = Client(origin, token)
+        barrier.wait(timeout=30)
+        durations = []
+        for _ in range(args.requests_per_worker):
+            started = time.perf_counter()
+            data = client.json("GET", path)
+            require(isinstance(data, dict))
+            require(data.get("id") == args.page_id if name == "page" else isinstance(data.get("items"), list))
+            durations.append((time.perf_counter() - started) * 1000)
+        return durations
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=args.concurrency) as pool:
+        futures = [pool.submit(worker) for _ in range(args.concurrency)]
+        samples = [value for future in futures for value in future.result()]
+    return percentile(samples, budget, name)
+
+
+def save_measurement(origin, token, args):
+    run_id = "acceptance-" + uuid.uuid4().hex
+    barrier = threading.Barrier(args.concurrency)
+    space_path = "/api/wiki/spaces/" + urllib.parse.quote(args.save_space, safe="")
+
+    def worker(number):
+        client = Client(origin, token)
+        page_id = None
+        durations = []
+        successful = False
+        cleaned = False
+        creation_attempted = False
+        try:
+            space = client.json("GET", space_path)
+            require(isinstance(space, dict) and space.get("editable") is True, "Save space must be writable")
+            creation_attempted = True
+            title = f"{run_id}-{number}"
+            page = client.json("POST", space_path + "/pages", {
+                "parentId": None, "kind": "NATIVE", "title": title,
+                "contentMd": "# Disposable save acceptance\nInitial revision.\n",
+            }, expected=201)
+            # A malformed create response must never authorize deletion of an existing page.
+            require(isinstance(page, dict) and type(page.get("id")) is int and page["id"] > 0
+                    and page["id"] != args.page_id and page.get("title") == title
+                    and page.get("spaceSlug") == args.save_space and page.get("kind") == "NATIVE"
+                    and page.get("gitReadOnly") is False, "Unconfirmed probe ownership")
+            page_id = page["id"]
+            version = page.get("versionNo")
+            require(type(version) is int and version > 0)
+            barrier.wait(timeout=30)
+            for revision in range(args.requests_per_worker):
+                started = time.perf_counter()
+                saved = client.json("PUT", f"/api/wiki/pages/{page_id}/content", {
+                    "baseVersionNo": version,
+                    "contentMd": f"# Disposable save acceptance\nRevision {revision + 1}.\n",
+                    "message": "Disposable acceptance measurement",
+                })
+                require(isinstance(saved, dict) and saved.get("versionNo") == version + 1)
+                durations.append((time.perf_counter() - started) * 1000)
+                version += 1
+            successful = True
+        except (ProbeFailure, ValueError, TypeError, KeyError, threading.BrokenBarrierError):
+            barrier.abort()
+        finally:
+            if page_id is not None:
+                try:
+                    cleaned = client.request("DELETE", f"/api/wiki/pages/{page_id}").status == 204
+                except ProbeFailure:
+                    pass
+        return {"samples": durations, "successful": successful, "cleaned": cleaned,
+                "id": page_id, "unknownCreation": creation_attempted and page_id is None}
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=args.concurrency) as pool:
+        futures = [pool.submit(worker, number) for number in range(args.concurrency)]
+        outcomes = [future.result() for future in futures]
+    samples = [value for outcome in outcomes for value in outcome["samples"]]
+    measurement = percentile(samples, 1000, "save") if samples else {
+        "endpoint": "save", "samples": 0, "budgetMs": 1000, "metric": "httpRoundTrip", "result": "FAIL"}
+    retained = [outcome["id"] for outcome in outcomes if outcome["id"] is not None and not outcome["cleaned"]]
+    unknown = any(outcome["unknownCreation"] for outcome in outcomes)
+    if not all(outcome["successful"] and outcome["cleaned"] for outcome in outcomes):
+        measurement["result"] = "FAIL"
+    return measurement, {"saveRunId": run_id, "retainedPageIds": retained, "unacknowledgedCreation": unknown,
+                         "cleanup": "softDeleteOwnedPages", "historyRetained": True}
 
 
 def main():
@@ -25,60 +108,40 @@ def main():
     parser.add_argument("--concurrency", type=int, default=50)
     parser.add_argument("--requests-per-worker", type=int, default=10)
     parser.add_argument("--min-pages", type=int, default=10_000)
+    parser.add_argument("--save-space", help="Explicitly authorize native probe creation in this disposable acceptance space")
     args = parser.parse_args()
-    base = urllib.parse.urlsplit(args.base_url)
-    if base.scheme not in ("http", "https") or not base.hostname or base.username or base.password or base.query or base.fragment or base.path not in ("", "/"):
-        parser.error("Use an origin URL without credentials, path, query or fragment")
-    if not (1 <= args.concurrency <= 100 and 1 <= args.requests_per_worker <= 100 and args.page_id > 0 and args.min_pages > 0):
-        parser.error("Invalid page, concurrency, request count or data size")
-    token = os.environ.get("WIKI_BENCHMARK_TOKEN", "").strip()
-    if not token or "\r" in token or "\n" in token:
-        parser.error("Set WIKI_BENCHMARK_TOKEN in external configuration")
-    origin = args.base_url.rstrip("/")
-
-    def get(path):
-        request = urllib.request.Request(origin + path, headers={"Authorization": "Bearer " + token, "Accept": "application/json"})
-        with urllib.request.build_opener(NoRedirect()).open(request, timeout=20) as response:
-            body = response.read(20_000_001)
-            if len(body) > 20_000_000:
-                raise ValueError("Response limit exceeded")
-            return json.loads(body)
-
     try:
-        spaces = get("/api/wiki/spaces")
+        origin = origin_url(args.base_url)
+        require(1 <= args.concurrency <= 100 and 1 <= args.requests_per_worker <= 100
+                and args.page_id > 0 and args.min_pages > 0 and 1 <= len(args.search.strip()) <= 200,
+                "Invalid page, concurrency, request count, search term or data size")
+        if args.save_space is not None:
+            require(re.fullmatch(r"[a-z][a-z0-9-]{1,31}", args.save_space), "Invalid disposable space slug")
+        token = external_token("WIKI_BENCHMARK_TOKEN")
+        spaces = Client(origin, token).json("GET", "/api/wiki/spaces")
+        require(isinstance(spaces, list))
+        require(all(isinstance(space, dict) and type(space.get("pageCount")) is int
+                    and space["pageCount"] >= 0 for space in spaces))
         visible_pages = sum(space["pageCount"] for space in spaces)
         if visible_pages < args.min_pages:
-            print(json.dumps({"result": "GAP", "reason": "Insufficient authorized data scale", "visiblePages": visible_pages, "requiredPages": args.min_pages}))
+            print(json.dumps({"result": "GAP", "reason": "Insufficient authorized data scale",
+                              "visiblePages": visible_pages, "requiredPages": args.min_pages}))
             return 1
-        results = []
-        for name, path, budget in [
-            ("page", f"/api/wiki/pages/{args.page_id}", 200),
-            ("search", "/api/wiki/search?" + urllib.parse.urlencode({"q": args.search, "size": 20}), 800),
-        ]:
-            barrier = threading.Barrier(args.concurrency)
-
-            def worker():
-                barrier.wait(timeout=30)
-                durations = []
-                for _ in range(args.requests_per_worker):
-                    started = time.perf_counter()
-                    data = get(path)
-                    if (name == "page" and data.get("id") != args.page_id) or (name == "search" and not isinstance(data.get("items"), list)):
-                        raise ValueError("Unexpected API response")
-                    durations.append((time.perf_counter() - started) * 1000)
-                return durations
-
-            with concurrent.futures.ThreadPoolExecutor(max_workers=args.concurrency) as pool:
-                futures = [pool.submit(worker) for _ in range(args.concurrency)]
-                samples = sorted(value for future in futures for value in future.result())
-            p95 = samples[math.ceil(len(samples) * 0.95) - 1]
-            results.append({"endpoint": name, "samples": len(samples), "p95Ms": round(p95, 2), "budgetMs": budget, "result": "PASS" if p95 < budget else "FAIL"})
-        passed = all(row["result"] == "PASS" for row in results)
-        print(json.dumps({"result": "PASS" if passed else "FAIL", "visiblePages": visible_pages, "workers": args.concurrency, "measurements": results}, indent=2))
+        measurements = [
+            read_measurement(origin, token, f"/api/wiki/pages/{args.page_id}", "page", 200, args),
+            read_measurement(origin, token, "/api/wiki/search?" + urllib.parse.urlencode({"q": args.search, "size": 20}), "search", 800, args),
+        ]
+        report = {"visiblePages": visible_pages, "workers": args.concurrency, "measurements": measurements}
+        if args.save_space is not None:
+            measurement, cleanup = save_measurement(origin, token, args)
+            measurements.append(measurement)
+            report.update(cleanup)
+        passed = all(row["result"] == "PASS" for row in measurements)
+        report["result"] = "PASS" if passed else "FAIL"
+        print(json.dumps(report, indent=2))
         return 0 if passed else 1
-    except (OSError, ValueError, KeyError, TypeError, threading.BrokenBarrierError):
-        # Request headers and token-bearing exceptions are never printed.
-        print(json.dumps({"result": "FAIL", "reason": "Authenticated request, fixture, or response validation failed"}))
+    except (ProbeFailure, ValueError, KeyError, TypeError, threading.BrokenBarrierError):
+        print(json.dumps({"result": "FAIL", "reason": "Request, configuration or response validation failed"}))
         return 1
 
 

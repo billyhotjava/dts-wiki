@@ -87,6 +87,8 @@ current identity checks and optional mail. [Content tools](docs/content-tools.md
 cover Markdown formatting and safe diagram bundles; [MCP](docs/mcp.md) describes
 personal agent access.
 See [editing continuity](docs/editing.md) for private drafts and soft presence.
+See [runtime acceptance](docs/acceptance.md) for identity smoke, deployment-version
+checks, read-only latency probes and explicitly scoped disposable save probes.
 Source verification and runtime deployment are separate steps. The v2 instance
 uses port 18091 and must not replace the existing Wiki instance without a
 separately approved migration window.

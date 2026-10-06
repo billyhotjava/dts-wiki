@@ -11,6 +11,7 @@ java -version 2>&1 | head -1 | grep -Eq 'version "25[.]' || { echo 'Set JAVA_HOM
 [[ "$(pnpm --version)" == 12.* ]] || { echo 'pnpm 12 is required.' >&2; exit 1; }
 docker image inspect dts-wiki-db:18-bigm >/dev/null
 docker image inspect testcontainers/ryuk:0.14.0 >/dev/null
+PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tests/tools -v
 pnpm --dir frontend install --frozen-lockfile
 pnpm --dir frontend test
 pnpm --dir frontend build

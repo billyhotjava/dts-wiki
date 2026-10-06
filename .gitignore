@@ -6,6 +6,7 @@ node_tmp/
 node_modules/
 frontend/node_modules/
 frontend/dist/
+__pycache__/
 *.visual-check.*.png
 *.visual-check.*.json
 *.visual-check.*.html

@@ -1,0 +1,32 @@
+name: Wiki verification
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: wiki-verify-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  verify:
+    # Fork code must not execute on the shared development host.
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: [self-hosted, linux, x64, dts-x86]
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Verify preloaded toolchains, fixtures and source
+        run: ./build.sh verify
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: wiki-test-results
+          path: |
+            target/surefire-reports/
+            target/failsafe-reports/
+          retention-days: 7
+          if-no-files-found: warn
