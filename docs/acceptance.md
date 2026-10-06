@@ -9,6 +9,17 @@ identities provisioned through the existing OIDC/PKCE flow.
 
 ## Read-only smoke
 
+Before identity provisioning, `--public-only` checks health/readiness, anonymous
+API rejection and an optional expected application commit without any token or
+plan. Successful public checks report PARTIAL with identity acceptance GAP;
+they never substitute for the permission matrix. A supplied commit rejects
+dirty build metadata as well as a different commit.
+
+```sh
+tools/acceptance-smoke --base-url https://your-wiki.example \
+  --public-only --expected-commit <application-commit>
+```
+
 Create a credential-free plan outside the source checkout. Replace the neutral
 example slugs and page IDs with actual expectations from the content manifest
 and approved membership matrix. Include an allowed and denied personal account
@@ -76,8 +87,14 @@ tools/acceptance-benchmark --base-url https://your-wiki.example \
 Budgets are page P95 <200 ms, search P95 <800 ms and save API P95 <1,000 ms.
 Measurements are client HTTP round trips, not isolated database commit timings.
 The save budget is a conservative end-to-end companion to the database budget.
-Use representative acceptance content separately for large Markdown scenarios;
-the default save body is intentionally small and is not a capacity claim.
+The default save body is intentionally small and is not a capacity claim. For
+representative Markdown, add `--save-content-file /secure/approved-fixture.md`
+alongside `--save-space`. The external regular file must contain nonempty UTF-8
+text no larger than 1,000,000 bytes. Invalid input fails before any network call.
+Each revision preserves that content and adds a revision comment to ensure a
+real save. The report records base-body bytes/SHA-256 and maximum revision bytes,
+never the body or external path. Use approved acceptance material: soft-deleted
+probe pages retain immutable history. No representative data file is bundled.
 
 Cleanup or measurement failures make the overall result FAIL. The report contains
 the run ID, retained acknowledged IDs and an unacknowledged-creation flag. A timeout

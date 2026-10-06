@@ -24,6 +24,17 @@ directory mode is 0700. Use the content repository's read-only deploy key.
 Supply the manifest URL/path, OIDC issuer/client, current role grants and public
 URL. Configure MCP separately as described in [mcp.md](mcp.md).
 
+Host login and content import use separate keys. Host SSH access is diagnosed
+through the owning [Infra runbook](https://github.com/billyhotjava/dts-infra/blob/main/deploy/ssh/README.md).
+Register the dedicated content public key on the manifest repository's Settings
+→ Deploy keys with **Allow write access disabled**, following
+[GitHub's deploy-key guide](https://docs.github.com/en/authentication/connecting-to-github-with-ssh/managing-deploy-keys).
+Keep its private key external and readable by container UID 1001 only. Verify
+the repository HEAD using `git ls-remote` with that explicit content identity
+and strict host-key checking before installing it into v2. A successful read
+does not prove write access is disabled; record the actual deploy-key setting
+separately. Never use the developer's general GitHub identity for runtime import.
+
 After the handoff's access, identity and database approval gates have passed:
 
 ```sh

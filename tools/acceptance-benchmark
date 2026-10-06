@@ -2,7 +2,9 @@
 """Authenticated latency acceptance; save probes require an explicit disposable space."""
 import argparse
 import concurrent.futures
+import hashlib
 import json
+from pathlib import Path
 import re
 import sys
 import threading
@@ -11,6 +13,24 @@ import urllib.parse
 import uuid
 
 from acceptance_http import Client, ProbeFailure, external_token, origin_url, percentile, require
+
+
+def save_body(args):
+    require(args.save_content_file is None or args.save_space is not None,
+            "Representative content requires an explicit disposable save space")
+    if args.save_content_file is None:
+        return "# Disposable save acceptance\n", "builtin"
+    require(args.save_content_file.is_file(), "Representative content must be a regular external file")
+    with args.save_content_file.open("rb") as source:
+        body = source.read(1_000_001)
+    require(0 < len(body) <= 1_000_000, "Representative content must be at most one million UTF-8 bytes")
+    content = body.decode("utf-8")
+    require(content.strip(), "Representative content must not be empty")
+    return content, "externalFile"
+
+
+def revision_body(content, revision):
+    return content + f"\n\n<!-- acceptance revision: {revision} -->\n"
 
 
 def read_measurement(origin, token, path, name, budget, args):
@@ -53,7 +73,7 @@ def save_measurement(origin, token, args):
             title = f"{run_id}-{number}"
             page = client.json("POST", space_path + "/pages", {
                 "parentId": None, "kind": "NATIVE", "title": title,
-                "contentMd": "# Disposable save acceptance\nInitial revision.\n",
+                "contentMd": revision_body(args.save_body, 0),
             }, expected=201)
             # A malformed create response must never authorize deletion of an existing page.
             require(isinstance(page, dict) and type(page.get("id")) is int and page["id"] > 0
@@ -68,7 +88,7 @@ def save_measurement(origin, token, args):
                 started = time.perf_counter()
                 saved = client.json("PUT", f"/api/wiki/pages/{page_id}/content", {
                     "baseVersionNo": version,
-                    "contentMd": f"# Disposable save acceptance\nRevision {revision + 1}.\n",
+                    "contentMd": revision_body(args.save_body, revision + 1),
                     "message": "Disposable acceptance measurement",
                 })
                 require(isinstance(saved, dict) and saved.get("versionNo") == version + 1)
@@ -109,6 +129,7 @@ def main():
     parser.add_argument("--requests-per-worker", type=int, default=10)
     parser.add_argument("--min-pages", type=int, default=10_000)
     parser.add_argument("--save-space", help="Explicitly authorize native probe creation in this disposable acceptance space")
+    parser.add_argument("--save-content-file", type=Path, help="External approved UTF-8 Markdown, at most 1 MB; requires --save-space")
     args = parser.parse_args()
     try:
         origin = origin_url(args.base_url)
@@ -117,6 +138,7 @@ def main():
                 "Invalid page, concurrency, request count, search term or data size")
         if args.save_space is not None:
             require(re.fullmatch(r"[a-z][a-z0-9-]{1,31}", args.save_space), "Invalid disposable space slug")
+        args.save_body, body_source = save_body(args)
         token = external_token("WIKI_BENCHMARK_TOKEN")
         spaces = Client(origin, token).json("GET", "/api/wiki/spaces")
         require(isinstance(spaces, list))
@@ -136,11 +158,15 @@ def main():
             measurement, cleanup = save_measurement(origin, token, args)
             measurements.append(measurement)
             report.update(cleanup)
+            content_bytes = args.save_body.encode("utf-8")
+            report["saveContent"] = {"source": body_source, "bodyBytes": len(content_bytes),
+                                     "bodySha256": hashlib.sha256(content_bytes).hexdigest(),
+                                     "maxRevisionBytes": len(revision_body(args.save_body, args.requests_per_worker).encode("utf-8"))}
         passed = all(row["result"] == "PASS" for row in measurements)
         report["result"] = "PASS" if passed else "FAIL"
         print(json.dumps(report, indent=2))
         return 0 if passed else 1
-    except (ProbeFailure, ValueError, KeyError, TypeError, threading.BrokenBarrierError):
+    except (ProbeFailure, OSError, ValueError, KeyError, TypeError, threading.BrokenBarrierError):
         print(json.dumps({"result": "FAIL", "reason": "Request, configuration or response validation failed"}))
         return 1
 

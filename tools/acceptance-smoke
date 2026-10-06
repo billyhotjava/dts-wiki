@@ -43,7 +43,9 @@ def validate_plan(document):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--base-url", required=True)
-    parser.add_argument("--plan", type=Path, required=True, help="Credential-free identity/space/page expectations")
+    scope = parser.add_mutually_exclusive_group(required=True)
+    scope.add_argument("--plan", type=Path, help="Credential-free identity/space/page expectations")
+    scope.add_argument("--public-only", action="store_true", help="Health/version/anonymous checks; identity acceptance remains GAP")
     parser.add_argument("--search", default="acceptance", help="Representative approved term; zero matches are allowed")
     parser.add_argument("--expected-commit", help="Require the deployed application Git commit, independently of health")
     args = parser.parse_args()
@@ -52,8 +54,10 @@ def main():
         origin = origin_url(args.base_url)
         require(1 <= len(args.search.strip()) <= 200, "Invalid search term")
         require(args.expected_commit is None or re.fullmatch(r"[a-f0-9]{7,40}", args.expected_commit), "Invalid expected commit")
-        require(args.plan.stat().st_size <= 100_000, "Acceptance plan is too large")
-        identities = validate_plan(json.loads(args.plan.read_text()))
+        identities = []
+        if args.plan is not None:
+            require(args.plan.stat().st_size <= 100_000, "Acceptance plan is too large")
+            identities = validate_plan(json.loads(args.plan.read_text()))
     except (OSError, ValueError, TypeError, KeyError, ProbeFailure):
         print(json.dumps({"result": "GAP", "reason": "Invalid plan or missing external identity configuration"}))
         return 1
@@ -73,12 +77,20 @@ def main():
     if args.expected_commit:
         def deployed_commit():
             info = anonymous.json("GET", "/management/info")
-            commit = info.get("git", {}).get("commit", {}).get("id")
+            git = info.get("git", {})
+            commit = git.get("commit", {}).get("id")
             if isinstance(commit, dict):
+                require(not str(commit.get("describe", "")).endswith("-dirty"), "Dirty application build")
                 commit = commit.get("full") or commit.get("abbrev")
+            require(git.get("dirty") not in (True, "true"), "Dirty application build")
             require(isinstance(commit, str) and re.fullmatch(r"[a-f0-9]{7,40}", commit)
                     and commit.startswith(args.expected_commit), "Deployed commit mismatch")
         check("deployed-commit", deployed_commit)
+    if args.public_only:
+        passed = all(row["result"] == "PASS" for row in checks)
+        print(json.dumps({"result": "PARTIAL" if passed else "FAIL", "mode": "publicOnly",
+                          "identityAcceptance": "GAP", "checks": checks}, indent=2))
+        return 0 if passed else 1
     for identity in identities:
         label = identity["label"]
         client = Client(origin, external_token(identity["tokenEnv"]))

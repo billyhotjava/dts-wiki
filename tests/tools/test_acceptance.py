@@ -1,5 +1,6 @@
 """Exercise operator tools against an isolated HTTP server, never a business DB."""
 import contextlib
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -16,7 +17,7 @@ TOKEN = "private-fixture-token"
 
 @contextlib.contextmanager
 def server(mode="normal"):
-    state = {"requests": [], "pages": {}, "next_id": 100, "deleted": []}
+    state = {"requests": [], "pages": {}, "next_id": 100, "deleted": [], "save_bodies": []}
 
     class Handler(BaseHTTPRequestHandler):
         def log_message(self, *args):
@@ -38,7 +39,8 @@ def server(mode="normal"):
                 if self.path.startswith("/management/health"):
                     return self.reply(200, {"status": "DOWN" if mode == "unhealthy" else "UP"})
                 if self.path == "/management/info":
-                    return self.reply(200, {"git": {"commit": {"id": {"full": "a" * 40}}}})
+                    return self.reply(200, {"git": {"commit": {"id": {"full": "a" * 40,
+                                           "describe": "aaaaaaa-dirty" if mode == "dirty" else "aaaaaaa"}}}})
                 if self.headers.get("Authorization") != "Bearer " + TOKEN:
                     return self.reply(401, {"private": TOKEN})
                 if mode == "redirect":
@@ -57,6 +59,7 @@ def server(mode="normal"):
                     return self.reply(200, {"items": [{"versionNo": 1, "contentMd": None}], "total": 1})
                 if self.path == "/api/wiki/spaces/team/pages" and self.command == "POST":
                     payload = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
+                    state["save_bodies"].append(payload["contentMd"])
                     state["next_id"] += 1
                     page_id = state["next_id"]
                     state["pages"][page_id] = 1
@@ -66,6 +69,7 @@ def server(mode="normal"):
                 if self.path.endswith("/content") and self.command == "PUT":
                     page_id = int(self.path.split("/")[4])
                     payload = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
+                    state["save_bodies"].append(payload["contentMd"])
                     if mode == "save-fail":
                         return self.reply(409, {"private": TOKEN})
                     if payload["baseVersionNo"] != state["pages"][page_id]:
@@ -150,6 +154,45 @@ class AcceptanceToolsTest(unittest.TestCase):
             self.assertEqual(set(state["deleted"]), set(state["pages"]))
             self.assertNotIn(TOKEN, result.stdout + result.stderr)
 
+    def test_representative_utf8_content_is_measured_without_printing_content_or_path(self):
+        content = "# Approved acceptance fixture\n" + "代表性文本\n" * 6000
+        with TemporaryDirectory() as directory, server() as (origin, state):
+            path = Path(directory) / "private-content.md"
+            path.write_text(content, encoding="utf-8")
+            result = self.benchmark(origin, "--save-space", "team", "--save-content-file", str(path))
+            self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+            report = json.loads(result.stdout)
+            self.assertEqual("externalFile", report["saveContent"]["source"])
+            self.assertEqual(len(content.encode()), report["saveContent"]["bodyBytes"])
+            self.assertEqual(hashlib.sha256(content.encode()).hexdigest(), report["saveContent"]["bodySha256"])
+            self.assertEqual(6, len(state["save_bodies"]))
+            self.assertTrue(all(body.startswith(content) for body in state["save_bodies"]))
+            self.assertEqual(set(state["deleted"]), set(state["pages"]))
+            self.assertNotIn("代表性文本", result.stdout + result.stderr)
+            self.assertNotIn(str(path), result.stdout + result.stderr)
+
+    def test_content_file_without_write_authorization_never_reaches_network(self):
+        with TemporaryDirectory() as directory, server() as (origin, state):
+            path = Path(directory) / "approved.md"
+            path.write_text("Approved fixture")
+            result = self.benchmark(origin, "--save-content-file", str(path))
+            self.assertEqual(1, result.returncode)
+            self.assertEqual([], state["requests"])
+
+    def test_invalid_content_fails_before_network(self):
+        with TemporaryDirectory() as directory, server() as (origin, state):
+            path = Path(directory) / "approved.md"
+            for data in (b"", b" \n", b"\xff", b"a" * 1_000_001):
+                with self.subTest(size=len(data)):
+                    path.write_bytes(data)
+                    result = self.benchmark(origin, "--save-space", "team", "--save-content-file", str(path))
+                    self.assertEqual(1, result.returncode)
+                    self.assertEqual([], state["requests"])
+            path.unlink()
+            result = self.benchmark(origin, "--save-space", "team", "--save-content-file", str(path))
+            self.assertEqual(1, result.returncode)
+            self.assertEqual([], state["requests"])
+
     def test_cleanup_failure_cannot_report_pass(self):
         with server("cleanup-fail") as (origin, state):
             result = self.benchmark(origin, "--save-space", "team")
@@ -213,6 +256,29 @@ class AcceptanceToolsTest(unittest.TestCase):
             result = self.smoke(origin, self.plan(), "--expected-commit", "bbbbbbb")
             self.assertEqual(result.returncode, 1)
             self.assertIn({"check": "deployed-commit", "result": "FAIL"}, json.loads(result.stdout)["checks"])
+
+    def test_dirty_matching_commit_cannot_pass_release_check(self):
+        with server("dirty") as (origin, _):
+            result = self.smoke(origin, self.plan(), "--expected-commit", "aaaaaaa")
+            self.assertEqual(1, result.returncode)
+            self.assertIn({"check": "deployed-commit", "result": "FAIL"}, json.loads(result.stdout)["checks"])
+
+    def test_public_probe_requires_no_token_and_keeps_identity_gap(self):
+        with server() as (origin, state):
+            result = self.invoke("acceptance-smoke", "--base-url", origin, "--public-only", "--expected-commit", "aaaaaaa", token="")
+            self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+            report = json.loads(result.stdout)
+            self.assertEqual("PARTIAL", report["result"])
+            self.assertEqual("GAP", report["identityAcceptance"])
+            self.assertEqual("publicOnly", report["mode"])
+            self.assertEqual(4, len(state["requests"]))
+            self.assertTrue(all(method == "GET" for method, _ in state["requests"]))
+
+    def test_public_probe_fails_for_unhealthy_runtime(self):
+        with server("unhealthy") as (origin, _):
+            result = self.invoke("acceptance-smoke", "--base-url", origin, "--public-only", token="")
+            self.assertEqual(1, result.returncode)
+            self.assertEqual("FAIL", json.loads(result.stdout)["result"])
 
     def test_unhealthy_instance_fails(self):
         with server("unhealthy") as (origin, _):
