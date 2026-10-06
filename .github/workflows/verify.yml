@@ -1,8 +1,7 @@
 name: Wiki verification
 on:
   push:
-    branches: [main]
-  pull_request:
+    branches: [main, 'feat/**', 'fix/**']
   workflow_dispatch:
 permissions:
   contents: read
@@ -11,8 +10,7 @@ concurrency:
   cancel-in-progress: true
 jobs:
   verify:
-    # Fork code must not execute on the shared development host.
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    # Only trusted repository pushes or explicit dispatches reach the shared host.
     runs-on: [self-hosted, linux, x64, dts-x86]
     timeout-minutes: 30
     steps:

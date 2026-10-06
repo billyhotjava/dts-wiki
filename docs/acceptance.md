@@ -91,8 +91,10 @@ immutable history and activity records; it does not purge acceptance data.
 trusted `dts-x86` self-hosted runner. The runner must have Java 25, Node 24,
 pnpm 12, Docker access, preloaded PostgreSQL/pg_bigm and Ryuk images, and the
 pinned Common Pack 1.1.0 artifact in its Maven repository. Register and configure
-the runner through the owning Infra S2 workstream. Fork PRs cannot run on this
-host. CI configuration alone is not a successful CI run.
+the runner through the owning Infra S2 workstream. Only main/feature/fix pushes
+in the owning repository and explicit dispatches trigger the workflow; fork PR
+events do not run on this host. Trusted branch checks supply PR validation.
+CI configuration alone is not a successful CI run.
 
 Before closing release acceptance, record real browser OIDC/PKCE login, native
 editing/conflicts and Git write rejection, diagram rendering, SMTP if enabled,
