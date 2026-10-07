@@ -41,7 +41,7 @@ docker exec -i "$container" pg_restore -U wiki -d wiki --exit-on-error --no-owne
 docker exec "$container" psql -U wiki -d wiki -Atc 'SELECT (SELECT count(*) FROM page),(SELECT count(*) FROM page_version),(SELECT count(*) FROM attachment),(SELECT count(*) FROM databasechangelog)' > "$restore_tmp/counts.txt"
 cmp "$backup_dir/counts.txt" "$restore_tmp/counts.txt"
 docker exec "$container" psql -U wiki -d wiki -Atc "SELECT extname FROM pg_extension WHERE extname='pg_bigm'" | grep -Fx pg_bigm
-docker exec "$container" psql -U wiki -d wiki -Atc 'SELECT sha256 FROM attachment' > "$restore_tmp/blob-refs.txt"
+docker exec "$container" psql -U wiki -d wiki -Atc 'SELECT sha_256 FROM attachment' > "$restore_tmp/blob-refs.txt"
 python3 - "$restore_tmp" <<'PY'
 import pathlib, sys
 root = pathlib.Path(sys.argv[1])

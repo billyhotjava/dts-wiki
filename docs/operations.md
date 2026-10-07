@@ -17,12 +17,16 @@ files and SHA-256 checksums. Preparation does not connect to the deployment
 host. `WIKI_APP_BASE_IMAGE` can select a preloaded image ID. Application builds
 install Git and SSH tools locally; the target never pulls images.
 
-Before deployment, provision `/data/dts-wiki-v2/.env`, the SSH known-hosts file
-and `secrets/content.key` using external configuration. Create `repos/`,
+Before deployment, provision `/data/dts-wiki-v2/.env` using external configuration.
+For private SSH sources, also provision the SSH known-hosts file and
+`secrets/content.key`. Create `repos/`,
 `attachments/` and `secrets/` for container UID 1001; key mode is 0600 and secret
 directory mode is 0700. Use the content repository's read-only deploy key.
 Supply the manifest URL/path, OIDC issuer/client, current role grants and public
-URL. Configure MCP separately as described in [mcp.md](mcp.md).
+URL. Set `WIKI_OIDC_AUDIENCE` to the audience emitted for the Wiki client
+(default `dts-wiki`). Compose lets Liquibase reuse the primary datasource and
+its credentials; do not set a separate Liquibase URL without its own credentials.
+Configure MCP separately as described in [mcp.md](mcp.md).
 
 Host login and content import use separate keys. Host SSH access is diagnosed
 through the owning [Infra runbook](https://github.com/billyhotjava/dts-infra/blob/main/deploy/ssh/README.md).
@@ -31,7 +35,9 @@ Register the dedicated content public key on the manifest repository's Settings
 [GitHub's deploy-key guide](https://docs.github.com/en/authentication/connecting-to-github-with-ssh/managing-deploy-keys).
 Keep its private key external and readable by container UID 1001 only. Verify
 the repository HEAD using `git ls-remote` with that explicit content identity
-and strict host-key checking before installing it into v2. A successful read
+and strict host-key checking before installing it into v2. Isolate that probe
+with `ssh -F /dev/null -o IdentitiesOnly=yes -o IdentityAgent=none -i <content-key>`;
+otherwise additional configured identities can make the result misleading. A successful read
 does not prove write access is disabled; record the actual deploy-key setting
 separately. Never use the developer's general GitHub identity for runtime import.
 
@@ -45,6 +51,36 @@ This loads the checksum-verified images and starts only `dts-wiki-v2`, on port
 18091. The persistent `compose.override.yml` selects the exact release tags.
 Existing tags cannot be overwritten on the target. The live instance at
 `/data/dts-wiki` on 18090, Jira, Keycloak and dockerd are outside this operation.
+
+### Public HTTPS sources and an existing database
+
+Public content repositories support anonymous HTTPS import. Keep the canonical
+HTTPS repository URL and TLS verification enabled; no content SSH identity is
+needed. The current `release.sh --deploy` preflight requires an SSH content key,
+so this path uses an inspected application-only rollout instead of that helper.
+
+Verify the immutable bundle checksums and load its application image with
+`docker load`. Preserve the live database container, volume and exact image ID
+in the external Compose override, along with the new unique application tag.
+Apply only the application with `docker compose up -d --no-deps --pull never
+wiki-app` after `docker compose config --quiet`. Run the backup/restore and
+migration rehearsal first. Do not load or select a lower database minor version
+merely because it is present in a prepared development bundle.
+
+If a verified Git HTTPS peer is reachable while the resolver-selected peer is
+not, an external app environment override can set `GIT_CONFIG_COUNT=1`,
+`GIT_CONFIG_KEY_0=http.curloptResolve` and
+`GIT_CONFIG_VALUE_0=<git-host>:443:<verified-peer-ip>`. This preserves the host
+name and certificate verification. Record it as a temporary deployment setting,
+retest normal DNS reachability and remove it when the route is repaired.
+
+The manifest collision guard prevents silently claiming existing native spaces.
+For an explicitly identified legacy space with no Git provenance or sync roots,
+back up its metadata and data first, then adopt only that verified space by
+assigning the configured repository and branch. The next manifest reconciliation
+sets its configured role and roots. Native pages outside imported roots keep
+their IDs, versions and write access. Do not clear existing pages or relax the
+general collision guard.
 
 ## Health and acceptance
 
@@ -94,6 +130,11 @@ every blob digest and attachment reference. It removes only its own container
 and temporary directory. External OIDC credentials and deploy keys remain in
 the external configuration escrow; the helper does not copy `.env` or keys.
 Git working copies can be rebuilt from the pinned manifest repository.
+The checker requires Python 3 and Docker. If Python is absent on the runtime
+host, run it from the trusted build host against copied backup artifacts and an
+explicit remote Docker command wrapper. Keep the disposable database isolated
+and use the recorded preloaded image; do not install extra runtime software just
+to run the rehearsal.
 
 For an actual recovery, obtain the incident owner's recovery window, stop only
 the v2 app, restore into a **new** database volume, restore blobs into a **new**

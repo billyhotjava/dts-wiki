@@ -73,7 +73,8 @@ files are excluded. Images and supported attachments use the scoped blob store.
 Git pages display a read-only label. Their content, tree operations and attachment
 writes return `409 GIT_PAGE_READ_ONLY`; native pages remain editable. Outbound
 synchronization is disabled by default and is always disabled for manifest-managed
-spaces. Install one read-only repository deploy key, never a personal access token.
+spaces. Public repositories can use anonymous HTTPS. Private SSH repositories
+use one read-only deploy key stored in external configuration.
 
 ## Kubernetes
 
