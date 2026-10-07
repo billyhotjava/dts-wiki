@@ -74,6 +74,16 @@ not, an external app environment override can set `GIT_CONFIG_COUNT=1`,
 name and certificate verification. Record it as a temporary deployment setting,
 retest normal DNS reachability and remove it when the route is repaired.
 
+Verify a full fetch containing new objects, not only `ls-remote` or an unchanged
+fetch. The .50 development fallback uses the restricted
+[Infra Git relay](https://github.com/billyhotjava/dts-infra/blob/main/deploy/wiki-git-proxy/README.md)
+on .6, accepting only .50. Its final Git override sets
+`GIT_CONFIG_KEY_0=http.https://github.com/.proxy` and
+`GIT_CONFIG_VALUE_0=http://10.20.0.6:10819` with `GIT_CONFIG_COUNT=1`, replacing
+the peer pin. This preserves GitHub TLS verification and does not route Java
+OIDC/DB requests through the proxy. Monitor the development proxy dependency;
+customer Kubernetes must qualify its own approved outbound route or proxy.
+
 The manifest collision guard prevents silently claiming existing native spaces.
 For an explicitly identified legacy space with no Git provenance or sync roots,
 back up its metadata and data first, then adopt only that verified space by
