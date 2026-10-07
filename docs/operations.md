@@ -170,3 +170,23 @@ the previous release's Compose files and run `docker compose up -d --pull never`
 Additive migrations retain previous columns; rehearse the previous binary with
 the migrated database before approving rollback compatibility. Never downgrade
 or edit an applied Liquibase changeset in place.
+
+## Public development instance (2026-10-07)
+
+`https://wiki.yuzhicloud.com` is served by this application on 10.20.0.50. TLS ends on the
+Aliyun edge Nginx, which forwards through the WireGuard hub to `10.20.0.50:18090`; the edge
+configuration was not changed. The live `compose.override.yml` therefore publishes the app on
+both `18090` (edge upstream) and `18091` (direct LAN access) and sets
+`WIKI_PUBLIC_URL=https://wiki.yuzhicloud.com`. Browser login uses the registered callback
+`https://wiki.yuzhicloud.com/login/oauth2/code/oidc`; the forwarded headers come from the edge.
+
+The previous static Wiki (oauth2-proxy, nginx, wiki-api under `/data/dts-wiki`) was removed
+with the product owner's approval during the development phase (no users). Its repository
+(including seven unpublished sandbox practice commits) and configuration are archived in
+`/data/backups/dts-wiki-legacy-20261007` (`repo.bundle`, `config.tgz`, `SHA256SUMS`). Legacy
+`/p/<space>/...html` links are not mapped: the old static paths end in `.html`, while the
+resolver addresses repository paths; add aliases only if such links are found in use.
+
+Rollback of the cutover is no longer "point the proxy back": restore the archived repository
+and configuration into `/data/dts-wiki`, rebuild its image and remove `18090` from the v2
+override. Prefer fixing forward on v2.
